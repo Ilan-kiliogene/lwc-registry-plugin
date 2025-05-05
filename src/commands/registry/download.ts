@@ -5,10 +5,6 @@ import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import type { Messages } from '@salesforce/core';
-import messagesRaw from '../../../messages/registry.download.md';
-
-const messages = messagesRaw as Messages<string>;
 
 export type RegistryVersion = {
   version: string;
@@ -33,9 +29,8 @@ export type ComponentInfoResponse = {
 };
 
 export default class RegistryDownload extends SfCommand<void> {
-  public static readonly summary = messages.getMessage('summary');
-  public static readonly description = messages.getMessage('description');
-  public static readonly examples = ['$ sf registry download', '$ sf registry download --interactive'];
+  public static readonly summary = 'Télécharge un composant LWC depuis un registre externe (avec menu interactif).';
+
   public async run(): Promise<void> {
     const server = 'http://192.168.1.50:3000';
 
@@ -46,7 +41,7 @@ export default class RegistryDownload extends SfCommand<void> {
       {
         name: 'name',
         type: 'list',
-        message: messages.getMessage('prompts.selectComponent'),
+        message: 'Quel composant veux-tu télécharger ?',
         choices: components.items.map((item) => item.name),
       },
     ]);
@@ -59,7 +54,7 @@ export default class RegistryDownload extends SfCommand<void> {
       {
         name: 'version',
         type: 'list',
-        message: messages.getMessage('prompts.selectVersion', [name]),
+        message: `Quelle version de ${name} ?`,
         choices: info.versions.reverse(),
       },
     ]);
@@ -72,7 +67,7 @@ export default class RegistryDownload extends SfCommand<void> {
       {
         name: 'choice',
         type: 'list',
-        message: messages.getMessage('prompts.selectTargetFolder'),
+        message: 'Dossier cible ?',
         choices: baseChoices,
       },
     ]);
@@ -85,7 +80,7 @@ export default class RegistryDownload extends SfCommand<void> {
         {
           name: 'target',
           type: 'input',
-          message: messages.getMessage('prompts.customPath'),
+          message: 'Tape un chemin :',
         },
       ]);
       target = targetPrompt.target;
