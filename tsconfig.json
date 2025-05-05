@@ -1,6 +1,15 @@
 {
   "extends": "@salesforce/dev-config/tsconfig-strict-esm",
   "compilerOptions": {
+    "target": "ES2020", // Compatibilité Bun + import.meta
+    "module": "ESNext", // Utilise les modules ESM (obligatoire pour import.meta)
+    "moduleResolution": "node", // Résolution des modules à la Node.js
+    "strict": true, // Active les vérifications strictes TypeScript
+    "resolveJsonModule": true, // Permet l'import de fichier json dans index.ts
+    "esModuleInterop": true, // Pour importer les modules CommonJS comme 'archiver'
+    "allowSyntheticDefaultImports": true, // Permet `import archiver from 'archiver'`
+    "forceConsistentCasingInFileNames": true, // Empêche les erreurs dues à des majuscules/minuscules mal utilisées
+    "skipLibCheck": true, // Ignore les erreurs dans les types des dépendances
     "outDir": "lib",
     "rootDir": "src"
   },
