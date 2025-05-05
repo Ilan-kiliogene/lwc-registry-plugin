@@ -61,7 +61,7 @@ export default class RegistryDownload extends SfCommand<void> {
     const version = versionPrompt.version;
 
     // 📂 Étape 3 : Choix du dossier
-    const baseChoices = ['components', 'downloads', 'temp', 'Autre...'];
+    const baseChoices = ['force-app/main/default/lwc', 'Autre...'];
 
     const choicePrompt = await inquirer.prompt<{ choice: string }>([
       {
@@ -90,7 +90,7 @@ export default class RegistryDownload extends SfCommand<void> {
 
     const url = `${server}/download/${name}/${version}`;
     const zipPath = path.join('/tmp', `${name}-${version}.zip`);
-    const extractPath = path.isAbsolute(target) ? path.join(target, name) : path.join(process.cwd(), target, name);
+    const extractPath = path.isAbsolute(target) ? target : path.join(process.cwd(), target);
 
     this.log(`📥 Téléchargement depuis ${url}...`);
     const res = await fetch(url);
