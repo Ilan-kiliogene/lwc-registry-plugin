@@ -102,10 +102,19 @@ export default class RegistryDownload extends SfCommand<void> {
     await mkdir('/tmp', { recursive: true });
     await fs.promises.writeFile(zipPath, buffer);
 
-    await rm(extractPath, { recursive: true, force: true });
-    await mkdir(extractPath, { recursive: true });
-
     const zip = new AdmZip(zipPath);
+    const zipEntries = zip.getEntries();
+
+    // Si l’archive contient un dossier racine (ex: `myComponent/`)
+    if (zipEntries.length > 0 && zipEntries[0].entryName.includes('/')) {
+      const rootDir = zipEntries[0].entryName.split('/')[0];
+      const targetComponentPath = path.join(extractPath, rootDir);
+
+      // Supprimer uniquement l’ancien composant s’il existe
+      await rm(targetComponentPath, { recursive: true, force: true });
+    }
+
+    // Extraire dans `lwc/`
     zip.extractAllTo(extractPath, true);
 
     this.log(`✅ Composant ${name}@${version} extrait dans ${extractPath}`);
