@@ -32,7 +32,7 @@ export default class RegistryDownload extends SfCommand<void> {
   public static readonly summary = 'Télécharge un composant LWC depuis un registre externe (avec menu interactif).';
 
   public async run(): Promise<void> {
-    const server = 'http://192.168.1.50:3000';
+    const server = 'https://registry.kiliogene.com/';
 
     // 🔍 Étape 1 : Récupère les composants
     const componentsResponse = await fetch(`${server}/components`);
