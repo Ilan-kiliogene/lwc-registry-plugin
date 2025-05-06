@@ -35,7 +35,8 @@ export default class RegistryDownload extends SfCommand<void> {
     const server = 'http://192.168.1.50:3000';
 
     // 🔍 Étape 1 : Récupère les composants
-    const components = await fetch(`${server}/components`).then((res) => res.json() as Promise<RegistryResponse>);
+    const componentsResponse = await fetch(`${server}/components`);
+    const components = (await componentsResponse.json()) as RegistryResponse;
 
     const response = await inquirer.prompt<{ name: string }>([
       {
@@ -48,7 +49,8 @@ export default class RegistryDownload extends SfCommand<void> {
     const name = response.name;
 
     // 🔢 Étape 2 : Récupère les versions du composant sélectionné
-    const info = await fetch(`${server}/info/${name}`).then((res) => res.json() as Promise<ComponentInfoResponse>);
+    const infoResponse = await fetch(`${server}/info/${name}`);
+    const info = (await infoResponse.json()) as ComponentInfoResponse;
 
     const versionPrompt = await inquirer.prompt<{ version: string }>([
       {
