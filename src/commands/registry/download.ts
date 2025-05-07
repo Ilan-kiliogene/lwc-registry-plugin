@@ -50,14 +50,15 @@ export default class RegistryDownload extends SfCommand<void> {
 
     // 🔢 Étape 2 : Récupère les versions du composant sélectionné
     const infoResponse = await fetch(`${server}/info/${name}`);
-    const info = (await infoResponse.json()) as ComponentInfoResponse;
+    const info = (await infoResponse.json()) as RegistryItem;
+    this.log(`🧪 info reçu : ${JSON.stringify(info, null, 2)}`);
 
     const versionPrompt = await inquirer.prompt<{ version: string }>([
       {
         name: 'version',
         type: 'list',
         message: `Quelle version de ${name} ?`,
-        choices: info.versions.reverse(),
+        choices: info.versions.map((v) => v.version).reverse(),
       },
     ]);
     const version = versionPrompt.version;
