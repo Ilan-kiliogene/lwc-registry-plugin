@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
@@ -101,26 +101,29 @@ export default class RegistryDownload extends SfCommand<void> {
       this.error(`❌ Erreur HTTP ${res.status}: ${res.statusText}`);
     }
 
-    const buffer = Buffer.from(await res.arrayBuffer());
-    await mkdir('/tmp', { recursive: true });
-    await fs.promises.writeFile(zipPath, buffer);
+    try {
+      const buffer = Buffer.from(await res.arrayBuffer());
+      await mkdir('/tmp', { recursive: true });
+      await fs.promises.writeFile(zipPath, buffer);
 
-    const zip = new AdmZip(zipPath);
-    const zipEntries = zip.getEntries();
+      const zip = new AdmZip(zipPath);
+      const zipEntries = zip.getEntries();
 
-    // Si l’archive contient un dossier racine (ex: `myComponent/`)
-    if (zipEntries.length > 0 && zipEntries[0].entryName.includes('/')) {
-      const rootDir = zipEntries[0].entryName.split('/')[0];
-      const targetComponentPath = path.join(extractPath, rootDir);
+      if (zipEntries.length > 0 && zipEntries[0].entryName.includes('/')) {
+        const rootDir = zipEntries[0].entryName.split('/')[0];
+        const targetComponentPath = path.join(extractPath, rootDir);
 
-      // Supprimer uniquement l’ancien composant s’il existe
-      await rm(targetComponentPath, { recursive: true, force: true });
+        if (fs.existsSync(targetComponentPath)) {
+          this.error(`❌ Le composant "${rootDir}" existe déjà dans ${extractPath}.`, { exit: 1 });
+        }
+      }
+
+      // ✅ Extraction uniquement si tout est bon
+      zip.extractAllTo(extractPath, true);
+      this.log(`✅ Composant ${name}@${version} extrait dans ${extractPath}`);
+    } finally {
+      // 🧹 Nettoyage dans tous les cas
+      await fs.promises.rm(zipPath, { force: true }).catch(() => {});
     }
-
-    // Extraire dans `lwc/`
-    zip.extractAllTo(extractPath, true);
-
-    this.log(`✅ Composant ${name}@${version} extrait dans ${extractPath}`);
-    await fs.promises.rm(zipPath, { force: true });
   }
 }
