@@ -6,54 +6,73 @@ import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 
-export type RegistryVersion = {
+/** Types partagés avec le serveur */
+export interface RegistryVersion {
   version: string;
   registryDependencies: string[];
-};
+}
 
-export type RegistryItem = {
+export interface RegistryEntry {
   name: string;
   description: string;
   versions: RegistryVersion[];
-};
+}
 
-export type RegistryResponse = {
+export interface RegistryResponse {
   name: string;
-  items: RegistryItem[];
-};
-
-export type ComponentInfoResponse = {
-  name: string;
-  description: string;
-  versions: string[];
-};
+  components: RegistryEntry[];
+  classes: RegistryEntry[];
+}
 
 export default class RegistryDownload extends SfCommand<void> {
-  public static readonly summary = 'Télécharge un composant LWC depuis un registre externe (avec menu interactif).';
+  public static readonly summary =
+    'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
 
   public async run(): Promise<void> {
     const server = 'https://registry.kiliogene.com';
 
-    // 🔍 Étape 1 : Récupère les composants
-    const componentsResponse = await fetch(`${server}/components`);
-    const components = (await componentsResponse.json()) as RegistryResponse;
+    // 🔍 Étape 1 : choix du type
+    const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
+      {
+        name: 'type',
+        type: 'list',
+        message: 'Que veux-tu télécharger ?',
+        choices: ['component', 'class'],
+      },
+    ]);
 
-    const response = await inquirer.prompt<{ name: string }>([
+    // 🔍 Étape 2 : récupération des données du registre
+    const response = await fetch(`${server}/components`);
+    if (!response.ok) {
+      this.error(`❌ Erreur HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const registry = (await response.json()) as RegistryResponse;
+    const entries = type === 'component' ? registry.components : registry.classes;
+
+    if (entries.length === 0) {
+      this.error(`❌ Aucun ${type} disponible dans le registre.`);
+    }
+
+    const { name } = await inquirer.prompt<{ name: string }>([
       {
         name: 'name',
         type: 'list',
-        message: 'Quel composant veux-tu télécharger ?',
-        choices: components.items.map((item) => item.name),
+        message: `Quel ${type} veux-tu télécharger ?`,
+        choices: entries.map((e) => e.name),
       },
     ]);
-    const name = response.name;
 
-    // 🔢 Étape 2 : Récupère les versions du composant sélectionné
-    const infoResponse = await fetch(`${server}/info/${name}`);
-    const info = (await infoResponse.json()) as RegistryItem;
+    // 🔢 Étape 3 : récupération des infos sur l’élément
+    const infoRes = await fetch(`${server}/info/${name}`);
+    if (!infoRes.ok) {
+      this.error(`❌ Erreur HTTP ${infoRes.status}: ${infoRes.statusText}`);
+    }
+
+    const info = (await infoRes.json()) as RegistryEntry;
     this.log(`🧪 info reçu : ${JSON.stringify(info, null, 2)}`);
 
-    const versionPrompt = await inquirer.prompt<{ version: string }>([
+    const { version } = await inquirer.prompt<{ version: string }>([
       {
         name: 'version',
         type: 'list',
@@ -61,12 +80,14 @@ export default class RegistryDownload extends SfCommand<void> {
         choices: info.versions.map((v) => v.version).reverse(),
       },
     ]);
-    const version = versionPrompt.version;
 
-    // 📂 Étape 3 : Choix du dossier
-    const baseChoices = ['force-app/main/default/lwc', 'Autre...'];
+    // 📂 Étape 4 : dossier de destination
+    const baseChoices = [
+      type === 'component' ? 'force-app/main/default/lwc' : 'force-app/main/default/classes',
+      'Autre...',
+    ];
 
-    const choicePrompt = await inquirer.prompt<{ choice: string }>([
+    const { choice } = await inquirer.prompt<{ choice: string }>([
       {
         name: 'choice',
         type: 'list',
@@ -74,24 +95,23 @@ export default class RegistryDownload extends SfCommand<void> {
         choices: baseChoices,
       },
     ]);
-    const choice = choicePrompt.choice;
 
     let target: string;
-
     if (choice === 'Autre...') {
-      const targetPrompt = await inquirer.prompt<{ target: string }>([
+      const { target: custom } = await inquirer.prompt<{ target: string }>([
         {
           name: 'target',
           type: 'input',
           message: 'Tape un chemin :',
         },
       ]);
-      target = targetPrompt.target;
+      target = custom;
     } else {
       target = choice;
     }
 
-    const url = `${server}/download/${name}/${version}`;
+    // 📥 Étape 5 : téléchargement et extraction
+    const url = `${server}/download/${type}/${name}/${version}`;
     const zipPath = path.join('/tmp', `${name}-${version}.zip`);
     const extractPath = path.isAbsolute(target) ? target : path.join(process.cwd(), target);
 
@@ -111,18 +131,16 @@ export default class RegistryDownload extends SfCommand<void> {
 
       if (zipEntries.length > 0 && zipEntries[0].entryName.includes('/')) {
         const rootDir = zipEntries[0].entryName.split('/')[0];
-        const targetComponentPath = path.join(extractPath, rootDir);
+        const targetPath = path.join(extractPath, rootDir);
 
-        if (fs.existsSync(targetComponentPath)) {
-          this.error(`❌ Le composant "${rootDir}" existe déjà dans ${extractPath}.`, { exit: 1 });
+        if (fs.existsSync(targetPath)) {
+          this.error(`❌ ${type} "${rootDir}" existe déjà dans ${extractPath}.`, { exit: 1 });
         }
       }
 
-      // ✅ Extraction uniquement si tout est bon
       zip.extractAllTo(extractPath, true);
-      this.log(`✅ Composant ${name}@${version} extrait dans ${extractPath}`);
+      this.log(`✅ ${type} ${name}@${version} extrait dans ${extractPath}`);
     } finally {
-      // 🧹 Nettoyage dans tous les cas
       await fs.promises.rm(zipPath, { force: true }).catch(() => {});
     }
   }
