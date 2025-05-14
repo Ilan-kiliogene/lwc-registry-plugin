@@ -12,10 +12,11 @@ type DeployType = 'composant' | 'classe';
 
 type MetadataBase = {
   description: string;
-  tags: string;
 };
 
 type MetadataComposant = MetadataBase & { isModal: boolean };
+
+// ... (imports et types inchangés)
 
 export default class RegistryDeploy extends SfCommand<void> {
   public static readonly summary = 'Déploie un composant LWC ou une classe Apex sur le registre externe';
@@ -23,7 +24,6 @@ export default class RegistryDeploy extends SfCommand<void> {
   public async run(): Promise<void> {
     const server = 'https://registry.kiliogene.com';
 
-    // Étape 1 : Choix du type
     const { type } = await inquirer.prompt<{ type: DeployType }>([
       {
         name: 'type',
@@ -37,18 +37,31 @@ export default class RegistryDeploy extends SfCommand<void> {
       ? 'force-app/main/default/lwc'
       : 'force-app/main/default/classes';
 
-    // Étape 2 : Liste des fichiers ou dossiers
-    const items = fs.readdirSync(basePath, { withFileTypes: true })
-      .filter((entry) =>
-        type === 'composant' ? entry.isDirectory() : entry.isFile() && entry.name.endsWith('.cls')
-      )
-      .map((entry) => type === 'composant' ? entry.name : entry.name.replace(/\.cls$/, ''));
+    let items: string[] = [];
+
+    if (type === 'composant') {
+      items = fs.readdirSync(basePath, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name);
+    } else {
+      const classDirs = fs.readdirSync(basePath, { withFileTypes: true })
+        .filter(entry => entry.isDirectory());
+
+      for (const dir of classDirs) {
+        const dirPath = path.join(basePath, dir.name);
+        const files = fs.readdirSync(dirPath);
+        for (const file of files) {
+          if (file.endsWith('.cls') && !file.endsWith('.cls-meta.xml')) {
+            items.push(file.replace(/\.cls$/, ''));
+          }
+        }
+      }
+    }
 
     if (items.length === 0) {
       this.error(`❌ Aucun ${type} trouvé dans ${basePath}`);
     }
 
-    // Étape 3 : Sélection du composant ou de la classe
     const { name } = await inquirer.prompt<{ name: string }>([
       {
         name: 'name',
@@ -58,41 +71,54 @@ export default class RegistryDeploy extends SfCommand<void> {
       },
     ]);
 
-    // Étape 4 : Métadonnées
     let metadata: MetadataBase | MetadataComposant;
 
     if (type === 'composant') {
       const answers = await inquirer.prompt([
         { name: 'description', message: 'Description ?', type: 'input' },
-        { name: 'tags', message: 'Tags (séparés par des virgules) ?', type: 'input' },
         { name: 'isModal', message: 'Est-ce un LightningModal ?', type: 'confirm' },
       ]);
       metadata = answers as MetadataComposant;
     } else {
       const answers = await inquirer.prompt([
         { name: 'description', message: 'Description ?', type: 'input' },
-        { name: 'tags', message: 'Tags (séparés par des virgules) ?', type: 'input' },
       ]);
       metadata = answers as MetadataBase;
     }
 
-
-    // Étape 5 : Vérification du chemin
-    const fullPath = path.join(basePath, name);
-    if (!fs.existsSync(fullPath)) {
-      this.error(`❌ Fichier ou dossier introuvable : ${fullPath}`);
-    }
-
-    // Étape 6 : Création du zip
     const zip = new AdmZip();
+
     if (type === 'composant') {
-      zip.addLocalFolder(fullPath, name);
-    } else {
-      const clsFile = `${fullPath}.cls`;
-      if (!fs.existsSync(clsFile)) {
-        this.error(`❌ Fichier classe introuvable : ${clsFile}`);
+      const folderToZip = path.join(basePath, name);
+      if (!fs.existsSync(folderToZip)) {
+        this.error(`❌ Dossier composant introuvable : ${folderToZip}`);
       }
-      zip.addLocalFile(clsFile);
+      zip.addLocalFolder(folderToZip, name);
+    } else {
+      const classDirs = fs.readdirSync(basePath, { withFileTypes: true })
+        .filter(entry => entry.isDirectory());
+
+      const foundDir = classDirs.find(dir => {
+        const clsPath = path.join(basePath, dir.name, `${name}.cls`);
+        return fs.existsSync(clsPath);
+      });
+
+      if (!foundDir) {
+        this.error(`❌ Classe "${name}" introuvable dans ${basePath}`);
+      }
+
+      const clsDir = path.join(basePath, foundDir.name);
+      const clsFile = path.join(clsDir, `${name}.cls`);
+      const metaFile = path.join(clsDir, `${name}.cls-meta.xml`);
+
+      if (!fs.existsSync(clsFile)) {
+        this.error(`❌ Fichier .cls introuvable : ${clsFile}`);
+      }
+      zip.addLocalFile(clsFile, name);
+
+      if (fs.existsSync(metaFile)) {
+        zip.addLocalFile(metaFile, name);
+      }
     }
 
     const tmpDir = '/tmp';
@@ -100,12 +126,14 @@ export default class RegistryDeploy extends SfCommand<void> {
     const zipPath = path.join(tmpDir, `${name}-${Date.now()}.zip`);
     zip.writeZip(zipPath);
 
-    // Étape 7 : Préparation de l'envoi
+    // 🧭 Debug ZIP
+    this.log(`📦 ZIP créé : ${zipPath}`);
+    this.log(`📁 Contenu : ${zip.getEntries().length} fichier(s)`);
+
     const form = new FormData();
     form.append('componentZip', fs.createReadStream(zipPath));
     form.append('name', name);
     form.append('description', metadata.description);
-    form.append('tags', metadata.tags);
     form.append('type', type);
     if (type === 'composant') {
       form.append('isModal', String((metadata as MetadataComposant).isModal));
@@ -113,18 +141,22 @@ export default class RegistryDeploy extends SfCommand<void> {
 
     this.log(`📤 Envoi de ${name} (${type}) vers ${server}/deploy...`);
 
-    const res = await fetch(`${server}/deploy`, {
-      method: 'POST',
-      body: form,
-      headers: form.getHeaders(),
-    });
+    try {
+      const res = await fetch(`${server}/deploy`, {
+        method: 'POST',
+        body: form,
+        headers: form.getHeaders(),
+      });
 
-    if (!res.ok) {
-      this.error(`❌ Échec HTTP ${res.status} : ${res.statusText}`);
+      if (!res.ok) {
+        this.error(`❌ Échec HTTP ${res.status} : ${res.statusText}`);
+      }
+
+      const resultText = await res.text();
+      this.log(`✅ Serveur : ${resultText}`);
+    } catch (err) {
+      this.error(`❌ Erreur réseau : ${(err as Error).message}`);
     }
-
-    const resultText = await res.text();
-    this.log(`✅ Serveur : ${resultText}`);
 
     await rm(zipPath, { force: true });
   }
