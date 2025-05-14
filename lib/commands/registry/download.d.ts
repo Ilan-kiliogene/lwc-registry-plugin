@@ -2,11 +2,12 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 /** Types partagés avec le serveur */
 export interface RegistryVersion {
     version: string;
+    description: string;
+    hash: string;
     registryDependencies: string[];
 }
 export interface RegistryEntry {
     name: string;
-    description: string;
     versions: RegistryVersion[];
 }
 export interface RegistryResponse {

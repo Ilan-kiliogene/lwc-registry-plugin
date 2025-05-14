@@ -9,12 +9,13 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 /** Types partagés avec le serveur */
 export interface RegistryVersion {
   version: string;
+  description: string;
+  hash: string;
   registryDependencies: string[];
 }
 
 export interface RegistryEntry {
   name: string;
-  description: string;
   versions: RegistryVersion[];
 }
 
@@ -64,7 +65,7 @@ export default class RegistryDownload extends SfCommand<void> {
     ]);
 
     // 🔢 Étape 3 : récupération des infos sur l’élément
-    const infoRes = await fetch(`${server}/info/${name}`);
+    const infoRes = await fetch(`${server}/info/${type}/${name}`);
     if (!infoRes.ok) {
       this.error(`❌ Erreur HTTP ${infoRes.status}: ${infoRes.statusText}`);
     }
