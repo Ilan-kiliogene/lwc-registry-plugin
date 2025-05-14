@@ -32,12 +32,12 @@ export default class RegistryDownload extends SfCommand<void> {
     const server = 'https://registry.kiliogene.com';
 
     // 🔍 Étape 1 : choix du type
-    const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
+    const { type } = await inquirer.prompt<{ type: 'components' | 'classes' }>([
       {
         name: 'type',
         type: 'list',
         message: 'Que veux-tu télécharger ?',
-        choices: ['component', 'class'],
+        choices: ['components', 'classes'],
       },
     ]);
 
@@ -48,7 +48,7 @@ export default class RegistryDownload extends SfCommand<void> {
     }
 
     const registry = (await response.json()) as RegistryResponse;
-    const entries = type === 'component' ? registry.components : registry.classes;
+    const entries = type === 'components' ? registry.components : registry.classes;
 
     if (entries.length === 0) {
       this.error(`❌ Aucun ${type} disponible dans le registre.`);
@@ -83,7 +83,7 @@ export default class RegistryDownload extends SfCommand<void> {
 
     // 📂 Étape 4 : dossier de destination
     const baseChoices = [
-      type === 'component' ? 'force-app/main/default/lwc' : 'force-app/main/default/classes',
+      type === 'components' ? 'force-app/main/default/lwc' : 'force-app/main/default/classes',
       'Autre...',
     ];
 

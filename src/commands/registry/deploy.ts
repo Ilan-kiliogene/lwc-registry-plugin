@@ -8,7 +8,7 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import FormData from 'form-data';
 
-type DeployType = 'composant' | 'classe';
+type DeployType = 'components' | 'classes';
 
 type MetadataBase = {
   description: string;
@@ -29,17 +29,17 @@ export default class RegistryDeploy extends SfCommand<void> {
         name: 'type',
         type: 'list',
         message: 'Que veux-tu déployer ?',
-        choices: ['composant', 'classe'],
+        choices: ['components', 'classes'],
       },
     ]);
 
-    const basePath = type === 'composant'
+    const basePath = type === 'components'
       ? 'force-app/main/default/lwc'
       : 'force-app/main/default/classes';
 
     let items: string[] = [];
 
-    if (type === 'composant') {
+    if (type === 'components') {
       items = fs.readdirSync(basePath, { withFileTypes: true })
         .filter(entry => entry.isDirectory())
         .map(entry => entry.name);
@@ -73,22 +73,22 @@ export default class RegistryDeploy extends SfCommand<void> {
 
     let metadata: MetadataBase | MetadataComposant;
 
-    if (type === 'composant') {
+    if (type === 'components') {
       const answers = await inquirer.prompt([
-        { name: 'description', message: 'Description ?', type: 'input' },
+        { name: 'description', message: 'Description ?', type: 'input', validate: input => input.trim() !== '' || 'La description est requise.' },
         { name: 'isModal', message: 'Est-ce un LightningModal ?', type: 'confirm' },
       ]);
       metadata = answers as MetadataComposant;
     } else {
       const answers = await inquirer.prompt([
-        { name: 'description', message: 'Description ?', type: 'input' },
+        { name: 'description', message: 'Description ?', type: 'input', validate: input => input.trim() !== '' || 'La description est requise.' }
       ]);
       metadata = answers as MetadataBase;
     }
 
     const zip = new AdmZip();
 
-    if (type === 'composant') {
+    if (type === 'components') {
       const folderToZip = path.join(basePath, name);
       if (!fs.existsSync(folderToZip)) {
         this.error(`❌ Dossier composant introuvable : ${folderToZip}`);
@@ -135,7 +135,7 @@ export default class RegistryDeploy extends SfCommand<void> {
     form.append('name', name);
     form.append('description', metadata.description);
     form.append('type', type);
-    if (type === 'composant') {
+    if (type === 'components') {
       form.append('isModal', String((metadata as MetadataComposant).isModal));
     }
 
@@ -147,17 +147,16 @@ export default class RegistryDeploy extends SfCommand<void> {
         body: form,
         headers: form.getHeaders(),
       });
-
+      const resultText = await res.text();
       if (!res.ok) {
-        this.error(`❌ Échec HTTP ${res.status} : ${res.statusText}`);
+        this.error(`❌ Échec HTTP ${res.status} : ${resultText}`);
       }
 
-      const resultText = await res.text();
       this.log(`✅ Serveur : ${resultText}`);
     } catch (err) {
       this.error(`❌ Erreur réseau : ${(err as Error).message}`);
+    }finally {
+      await rm(zipPath, { force: true });
     }
-
-    await rm(zipPath, { force: true });
   }
 }
