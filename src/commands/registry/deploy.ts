@@ -14,8 +14,6 @@ type MetadataBase = {
   description: string;
 };
 
-type MetadataComposant = MetadataBase & { isModal: boolean };
-
 // ... (imports et types inchangés)
 
 export default class RegistryDeploy extends SfCommand<void> {
@@ -71,20 +69,11 @@ export default class RegistryDeploy extends SfCommand<void> {
       },
     ]);
 
-    let metadata: MetadataBase | MetadataComposant;
 
-    if (type === 'components') {
-      const answers = await inquirer.prompt([
-        { name: 'description', message: 'Description ?', type: 'input', validate: input => input.trim() !== '' || 'La description est requise.' },
-        { name: 'isModal', message: 'Est-ce un LightningModal ?', type: 'confirm' },
-      ]);
-      metadata = answers as MetadataComposant;
-    } else {
-      const answers = await inquirer.prompt([
-        { name: 'description', message: 'Description ?', type: 'input', validate: input => input.trim() !== '' || 'La description est requise.' }
-      ]);
-      metadata = answers as MetadataBase;
-    }
+    const answers = await inquirer.prompt([
+      { name: 'description', message: 'Description ?', type: 'input', validate: input => input.trim() !== '' || 'La description est requise.' }
+    ]);
+    const metadata = answers as MetadataBase;    
 
     const zip = new AdmZip();
 
@@ -135,9 +124,6 @@ export default class RegistryDeploy extends SfCommand<void> {
     form.append('name', name);
     form.append('description', metadata.description);
     form.append('type', type);
-    if (type === 'components') {
-      form.append('isModal', String((metadata as MetadataComposant).isModal));
-    }
 
     this.log(`📤 Envoi de ${name} (${type}) vers ${server}/deploy...`);
 
