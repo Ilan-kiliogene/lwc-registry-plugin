@@ -5,32 +5,40 @@ import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import * as fsExtra from 'fs-extra'; // Typage correct
+import * as fsExtra from 'fs-extra';
 
-type RegistryVersion = {
+type RegistryDependency = Readonly<{
+  name: string;
+  type: 'component' | 'class';
+  version: string;
+}>;
+
+type RegistryVersion = Readonly<{
   version: string;
   description: string;
   hash: string;
-  registryDependencies: Array<{ name: string; type: string; version: string }>;
-};
-type RegistryEntry = { name: string; versions: RegistryVersion[] };
-type RegistryResponse = {
+  registryDependencies: readonly RegistryDependency[];
+}>;
+
+type RegistryEntry = Readonly<{
   name: string;
-  component: RegistryEntry[];
-  class: RegistryEntry[];
-};
+  versions: readonly RegistryVersion[];
+}>;
+
+type RegistryResponse = Readonly<{
+  name: string;
+  component: readonly RegistryEntry[];
+  class: readonly RegistryEntry[];
+}>;
 
 export default class RegistryDownload extends SfCommand<void> {
-  public static readonly summary =
-    'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
-  public static readonly examples = [
-    '$ sf registry download',
-  ];
+  public static readonly summary = 'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
+  public static readonly examples = ['$ sf registry download'];
 
   public async run(): Promise<void> {
     const server = 'https://registry.kiliogene.com';
 
-    // Étape 1 : choix du type
+    // 1. Choix du type à télécharger
     const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
       {
         name: 'type',
@@ -40,19 +48,15 @@ export default class RegistryDownload extends SfCommand<void> {
       },
     ]);
 
-    // Étape 2 : récupération des données du registre (catalog complet)
-    const response = await fetch(`${server}/catalog`);
-    if (!response.ok) {
-      this.error(`❌ Erreur HTTP ${response.status}: ${response.statusText}`);
-    }
+    // 2. Récupération du registre complet
+    const registry = await fetchRegistry(server, this);
 
-    const registry = (await response.json()) as RegistryResponse;
-    const entries: RegistryEntry[] = type === 'component' ? registry.component : registry.class;
-
+    const entries = type === 'component' ? registry.component : registry.class;
     if (entries.length === 0) {
       this.error(`❌ Aucun ${type} disponible dans le registre.`);
     }
 
+    // 3. Sélection de l’élément à télécharger
     const { name } = await inquirer.prompt<{ name: string }>([
       {
         name: 'name',
@@ -62,35 +66,30 @@ export default class RegistryDownload extends SfCommand<void> {
       },
     ]);
 
-    // Étape 3 : récupération des infos sur l’élément
-    const infoRes = await fetch(`${server}/info/${type}/${name}`);
-    if (!infoRes.ok) {
-      this.error(`❌ Erreur HTTP ${infoRes.status}: ${infoRes.statusText}`);
-    }
+    // 4. Sélection de la version
+    const entry = entries.find(e => e.name === name);
+    if (!entry) this.error(`❌ ${type} "${name}" non trouvé dans le registre.`);
 
-    const info = (await infoRes.json()) as RegistryEntry;
-    this.log(`🧪 info reçu : ${JSON.stringify(info, null, 2)}`);
-
+    const versions = entry.versions.map((v) => v.version).reverse();
     const { version } = await inquirer.prompt<{ version: string }>([
       {
         name: 'version',
         type: 'list',
         message: `Quelle version de ${name} ?`,
-        choices: info.versions.map((v) => v.version).reverse(),
+        choices: versions,
       },
     ]);
 
-    // Étape 4 : choix du dossier cible (racine lwc/classes ou custom)
-    const baseChoices = [
-      'force-app/main/default/',
-      'Autre...',
-    ];
+    // 5. Sélection du dossier de destination
     const { choice } = await inquirer.prompt<{ choice: string }>([
       {
         name: 'choice',
         type: 'list',
         message: 'Dossier cible ? (les composants LWC iront dans lwc, les classes dans classes)',
-        choices: baseChoices,
+        choices: [
+          'force-app/main/default/', // Racine standard pour SF
+          'Autre...',
+        ],
       },
     ]);
 
@@ -106,7 +105,7 @@ export default class RegistryDownload extends SfCommand<void> {
       customTarget = custom;
     }
 
-    // 📥 Étape 5 : téléchargement et extraction du zip
+    // 6. Téléchargement et extraction
     const url = `${server}/download/${type}/${name}/${version}`;
     const zipPath = path.join('/tmp', `${name}-${version}.zip`);
     const tmpExtractPath = path.join('/tmp', `registry-download-${Date.now()}`);
@@ -125,21 +124,15 @@ export default class RegistryDownload extends SfCommand<void> {
       const zip = new AdmZip(zipPath);
       zip.extractAllTo(tmpExtractPath, true);
 
-      // On veut savoir quels dossiers sont composants, lesquels sont classes
-      // => On récupère la liste des dossiers extraits
+      // 7. Récupération de tous les dossiers extraits (composants/classes)
       const extractedDirs = fs.readdirSync(tmpExtractPath, { withFileTypes: true })
         .filter((e) => e.isDirectory())
         .map((e) => e.name);
 
-      // On mappe chaque dossier à son type via registry.json (reçu plus haut)
       for (const itemName of extractedDirs) {
-        let itemType: string | null = null;
+        const itemType = getItemType(itemName, registry);
 
-        if (registry.component.some((c) => c.name === itemName)) {
-          itemType = 'component';
-        } else if (registry.class.some((c) => c.name === itemName)) {
-          itemType = 'class';
-        } else {
+        if (!itemType) {
           this.log(`⚠️ Type inconnu pour ${itemName}, ignoré`);
           continue;
         }
@@ -155,6 +148,7 @@ export default class RegistryDownload extends SfCommand<void> {
         } else if (itemType === 'class') {
           destDir = path.join(process.cwd(), 'force-app/main/default/classes', itemName);
         }
+
         if (fs.existsSync(destDir)) {
           this.error(`❌ ${itemType} "${itemName}" existe déjà dans ${destDir}.`);
         }
@@ -165,8 +159,35 @@ export default class RegistryDownload extends SfCommand<void> {
 
       this.log('✅ Tous les items ont été extraits au bon endroit !');
       await fsExtra.remove(tmpExtractPath);
+
     } finally {
       await fs.promises.rm(zipPath, { force: true }).catch(() => {});
     }
   }
+}
+
+/**
+ * Télécharge le catalogue du registre.
+ */
+async function fetchRegistry(
+  server: string,
+  cli: SfCommand<void>
+): Promise<RegistryResponse> {
+  const response = await fetch(`${server}/catalog`);
+  if (!response.ok) {
+    cli.error(`❌ Erreur HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json() as Promise<RegistryResponse>;
+}
+
+/**
+ * Détecte si un item est un composant ou une classe à partir du registry.
+ */
+function getItemType(
+  itemName: string,
+  registry: RegistryResponse
+): 'component' | 'class' | null {
+  if (registry.component.some(c => c.name === itemName)) return 'component';
+  if (registry.class.some(c => c.name === itemName)) return 'class';
+  return null;
 }

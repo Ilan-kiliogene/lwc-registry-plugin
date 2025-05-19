@@ -10,24 +10,26 @@ import FormData from 'form-data';
 
 type DeployType = 'component' | 'class';
 
-type MetadataBase = {
-  description: string;
-};
+type MetadataBase = { description: string };
 
 type ItemType = 'component' | 'class';
-type RegistryDep = {
+type RegistryDep = Readonly<{
   name: string;
   type: ItemType;
   dependencies: Array<{ name: string; type: ItemType }>;
-};
+}>;
 
 export default class RegistryDeploy extends SfCommand<void> {
   public static readonly summary =
     'Déploie un composant LWC ou une classe Apex (et ses dépendances récursives) sur le registre externe';
+  public static readonly examples = [
+    '$ sf registry deploy',
+  ];
 
   public async run(): Promise<void> {
     const server = 'https://registry.kiliogene.com';
 
+    // 1. Sélection du type à déployer
     const { type } = await inquirer.prompt<{ type: DeployType }>([
       {
         name: 'type',
@@ -40,42 +42,18 @@ export default class RegistryDeploy extends SfCommand<void> {
     const basePathLwc = 'force-app/main/default/lwc';
     const basePathApex = 'force-app/main/default/classes';
 
-    // Liste tous les composants et classes
-    const allComponents = fs
-      .readdirSync(basePathLwc, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
+    // 2. Listing des composants/classes disponibles
+    const allComponents = safeListDirNames(basePathLwc);
 
+    // On crée la vraie liste des classes depuis tous les .cls
+    const { allClasses, classNameToDir } = findAllClasses(basePathApex);
 
-    const allClasses: string[] = [];
-    const classDirs = fs.readdirSync(basePathApex, { withFileTypes: true })
-      .filter(entry => entry.isDirectory());
-
-    const classNameToDir: Record<string, string> = {};
-
-    for (const dir of classDirs) {
-      const dirPath = path.join(basePathApex, dir.name);
-      const files = fs.readdirSync(dirPath);
-      for (const file of files) {
-        if (file.endsWith('.cls') && !file.endsWith('.cls-meta.xml')) {
-          const className = file.replace(/\.cls$/, '');
-          allClasses.push(className);
-          classNameToDir[className] = dirPath;
-        }
-      }
-    }
-
-
-    const items: string[] = type === 'component' ? allComponents : allClasses;
-
+    const items = type === 'component' ? allComponents : allClasses;
     if (items.length === 0) {
-      this.error(
-        `❌ Aucun ${type} trouvé dans ${
-          type === 'component' ? basePathLwc : basePathApex
-        }`
-      );
+      this.error(`❌ Aucun ${type} trouvé dans ${type === 'component' ? basePathLwc : basePathApex}`);
     }
 
+    // 3. Sélection de l’item à déployer
     const { name } = await inquirer.prompt<{ name: string }>([
       {
         name: 'name',
@@ -85,6 +63,7 @@ export default class RegistryDeploy extends SfCommand<void> {
       },
     ]);
 
+    // 4. Description
     const answers = await inquirer.prompt([
       {
         name: 'description',
@@ -99,41 +78,30 @@ export default class RegistryDeploy extends SfCommand<void> {
     const tmpDir = '/tmp';
     await mkdir(tmpDir, { recursive: true });
 
-    // --- RÉSOLUTION RÉCURSIVE DES DÉPENDANCES (avec stockage dépendances propres à chaque item) ---
-
+    // 5. Dépendances récursives + ajout des fichiers au ZIP
     const added = new Set<string>();
     const itemsToZip: RegistryDep[] = [];
-
-    // Pour éviter de repasser plusieurs fois sur les mêmes items
 
     const getItemDependencies = (depName: string, depType: ItemType): Array<{ name: string; type: ItemType }> => {
       if (depType === 'component') {
         const compDir = path.join(basePathLwc, depName);
-
-        // Dépendances LWC et Apex dans les fichiers
         const htmlDeps = extractHTMLDependencies(path.join(compDir, `${depName}.html`));
         const tsLwcDeps = extractTsJsLwcDependencies(path.join(compDir, `${depName}.ts`));
         const jsLwcDeps = extractTsJsLwcDependencies(path.join(compDir, `${depName}.js`));
         const tsApexDeps = extractTsJsApexDependencies(path.join(compDir, `${depName}.ts`));
         const jsApexDeps = extractTsJsApexDependencies(path.join(compDir, `${depName}.js`));
-
-        // LWC = composant, Apex = classe
         const result: Array<{ name: string; type: ItemType }> = [];
         for (const lwcDep of [...htmlDeps, ...tsLwcDeps, ...jsLwcDeps]) {
-          if (allComponents.includes(lwcDep)) {
-            result.push({ name: lwcDep, type: 'component' });
-          }
+          if (allComponents.includes(lwcDep)) result.push({ name: lwcDep, type: 'component' });
         }
         for (const apexDep of [...tsApexDeps, ...jsApexDeps]) {
-          if (allClasses.includes(apexDep)) {
-            result.push({ name: apexDep, type: 'class' });
-          }
+          if (allClasses.includes(apexDep)) result.push({ name: apexDep, type: 'class' });
         }
         return result;
       } else {
-        // === Classe Apex ===
-        const classDir = path.join(basePathApex, depName);
-        const mainClsFile = path.join(classDir, `${depName}.cls`);
+        // classe Apex
+        const dir = classNameToDir[depName];
+        const mainClsFile = dir ? path.join(dir, `${depName}.cls`) : '';
         const apexDeps = extractApexDependencies(mainClsFile, allClasses, depName);
         return apexDeps.filter((dep) => allClasses.includes(dep)).map((dep) => ({
           name: dep,
@@ -142,18 +110,21 @@ export default class RegistryDeploy extends SfCommand<void> {
       }
     };
 
-    // Fonction principale récursive, mais ici chaque item conserve sa propre liste de dépendances
     const addWithDependencies = (depName: string, depType: ItemType): void => {
       const key = `${depType}:${depName}`;
       if (added.has(key)) return;
       added.add(key);
 
-      // Ajoute le dossier au zip
+      // Ajoute les fichiers au ZIP
       if (depType === 'component') {
         const compDir = path.join(basePathLwc, depName);
         zip.addLocalFolder(compDir, depName);
       } else {
         const classDir = classNameToDir[depName];
+        if (!classDir) {
+          this.log(`❌ Impossible de trouver le dossier source pour la classe ${depName} (dossier parent inconnu)`);
+          return;
+        }
         zip.addLocalFolder(classDir, depName);
       }
 
@@ -165,28 +136,26 @@ export default class RegistryDeploy extends SfCommand<void> {
         dependencies: thisDeps,
       });
 
-      // Ajoute récursivement les dépendances détectées
       for (const dep of thisDeps) {
         addWithDependencies(dep.name, dep.type);
       }
     };
 
-    addWithDependencies(name, type === 'component' ? 'component' : 'class');
+    addWithDependencies(name, type);
 
-    // Génère un fichier JSON pour les dépendances
+    // 6. Ajoute le JSON des dépendances
     const depsJsonPath = path.join(tmpDir, `${name}-registry-deps.json`);
     fs.writeFileSync(depsJsonPath, JSON.stringify(itemsToZip, null, 2));
     zip.addLocalFile(depsJsonPath, '', 'registry-deps.json');
 
-    // Ecrit le ZIP
+    // 7. Écriture du ZIP et upload
     const zipPath = path.join(tmpDir, `${name}-${Date.now()}.zip`);
     zip.writeZip(zipPath);
 
-    // 🧭 Debug ZIP
     this.log(`📦 ZIP créé : ${zipPath}`);
     this.log(`📁 Contenu : ${zip.getEntries().length} fichier(s)`);
 
-    // Prépare le form pour upload
+    // Upload vers serveur
     const form = new FormData();
     form.append('componentZip', fs.createReadStream(zipPath));
     form.append('name', name);
@@ -215,8 +184,43 @@ export default class RegistryDeploy extends SfCommand<void> {
   }
 }
 
-// --- FONCTIONS DÉTECTION DÉPENDANCES ---
+// ===== Utilitaires robustes et typés =====
 
+// Liste tous les dossiers immédiats (sécurité et compatibilité cross-OS)
+function safeListDirNames(base: string): string[] {
+  try {
+    return fs.readdirSync(base, { withFileTypes: true })
+      .filter(e => e.isDirectory())
+      .map(e => e.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Recherche tous les noms de classes Apex dans force-app/main/default/classes,
+ * peu importe le nom du dossier parent.
+ */
+function findAllClasses(basePathApex: string): { allClasses: string[]; classNameToDir: Record<string, string> } {
+  const allClasses: string[] = [];
+  const classNameToDir: Record<string, string> = {};
+  try {
+    const classDirs = fs.readdirSync(basePathApex, { withFileTypes: true }).filter(e => e.isDirectory());
+    for (const dir of classDirs) {
+      const dirPath = path.join(basePathApex, dir.name);
+      for (const file of fs.readdirSync(dirPath)) {
+        if (file.endsWith('.cls') && !file.endsWith('.cls-meta.xml')) {
+          const className = file.replace(/\.cls$/, '');
+          allClasses.push(className);
+          classNameToDir[className] = dirPath;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return { allClasses, classNameToDir };
+}
+
+// Dépendances LWC depuis HTML
 function extractHTMLDependencies(filePath: string): string[] {
   if (!fs.existsSync(filePath)) return [];
   const html = fs.readFileSync(filePath, 'utf8');
@@ -228,7 +232,6 @@ function extractHTMLDependencies(filePath: string): string[] {
   }
   return [...dependencies];
 }
-
 function extractTsJsLwcDependencies(filePath: string): string[] {
   if (!fs.existsSync(filePath)) return [];
   const code = fs.readFileSync(filePath, 'utf8');
@@ -240,13 +243,10 @@ function extractTsJsLwcDependencies(filePath: string): string[] {
   }
   return [...lwcDeps];
 }
-
-// Dépendances Apex dans les fichiers TS/JS des composants
 function extractTsJsApexDependencies(filePath: string): string[] {
   if (!fs.existsSync(filePath)) return [];
   const code = fs.readFileSync(filePath, 'utf8');
   const apexDeps = new Set<string>();
-  // import ... from "@salesforce/apex/XXX.METHOD";
   const apexRegex = /import\s+\w+\s+from\s+['"]@salesforce\/apex\/([a-zA-Z0-9_]+)\.[^'"]+['"]/g;
   let match;
   while ((match = apexRegex.exec(code))) {
@@ -254,7 +254,6 @@ function extractTsJsApexDependencies(filePath: string): string[] {
   }
   return [...apexDeps];
 }
-
 function extractApexDependencies(clsFilePath: string, allClassNames: string[], selfClassName: string): string[] {
   if (!fs.existsSync(clsFilePath)) return [];
   const code = fs.readFileSync(clsFilePath, 'utf8');
