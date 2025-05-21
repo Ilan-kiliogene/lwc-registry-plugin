@@ -8,6 +8,26 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import FormData from 'form-data';
 
+const FORBIDDEN_EXTENSIONS = [
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.bat',
+  '.cmd',
+  '.ps1',
+  '.exe',
+  '.scr',
+  '.vbs',
+  '.msi',
+  '.php',
+  '.py',
+  '.pl',
+  '.rb',
+  '.jar',
+  '.com',
+  '.wsf',
+];
+
 type DeployType = 'component' | 'class';
 
 type MetadataBase = { description: string };
@@ -22,9 +42,7 @@ type RegistryDep = Readonly<{
 export default class RegistryDeploy extends SfCommand<void> {
   public static readonly summary =
     'Déploie un composant LWC ou une classe Apex (et ses dépendances récursives) sur le registre externe';
-  public static readonly examples = [
-    '$ sf registry deploy',
-  ];
+  public static readonly examples = ['$ sf registry deploy'];
 
   public async run(): Promise<void> {
     const server = 'https://registry.kiliogene.com';
@@ -103,10 +121,12 @@ export default class RegistryDeploy extends SfCommand<void> {
         const dir = classNameToDir[depName];
         const mainClsFile = dir ? path.join(dir, `${depName}.cls`) : '';
         const apexDeps = extractApexDependencies(mainClsFile, allClasses, depName);
-        return apexDeps.filter((dep) => allClasses.includes(dep)).map((dep) => ({
-          name: dep,
-          type: 'class' as ItemType,
-        }));
+        return apexDeps
+          .filter((dep) => allClasses.includes(dep))
+          .map((dep) => ({
+            name: dep,
+            type: 'class' as ItemType,
+          }));
       }
     };
 
@@ -115,18 +135,16 @@ export default class RegistryDeploy extends SfCommand<void> {
       if (added.has(key)) return;
       added.add(key);
 
-      // Ajoute les fichiers au ZIP
-      if (depType === 'component') {
-        const compDir = path.join(basePathLwc, depName);
-        zip.addLocalFolder(compDir, depName);
-      } else {
-        const classDir = classNameToDir[depName];
-        if (!classDir) {
-          this.log(`❌ Impossible de trouver le dossier source pour la classe ${depName} (dossier parent inconnu)`);
-          return;
+      const dirToAdd = depType === 'component' ? path.join(basePathLwc, depName) : classNameToDir[depName];
+
+      // Vérification blacklist avant ajout
+      for (const filePath of walkDir(dirToAdd)) {
+        if (isForbiddenFile(filePath)) {
+          this.error(`❌ Fichier interdit détecté : ${filePath}. Extension refusée : ${path.extname(filePath)}`);
         }
-        zip.addLocalFolder(classDir, depName);
       }
+
+      zip.addLocalFolder(dirToAdd, depName);
 
       const thisDeps = getItemDependencies(depName, depType);
 
@@ -189,9 +207,10 @@ export default class RegistryDeploy extends SfCommand<void> {
 // Liste tous les dossiers immédiats (sécurité et compatibilité cross-OS)
 function safeListDirNames(base: string): string[] {
   try {
-    return fs.readdirSync(base, { withFileTypes: true })
-      .filter(e => e.isDirectory())
-      .map(e => e.name);
+    return fs
+      .readdirSync(base, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
   } catch {
     return [];
   }
@@ -205,7 +224,7 @@ function findAllClasses(basePathApex: string): { allClasses: string[]; className
   const allClasses: string[] = [];
   const classNameToDir: Record<string, string> = {};
   try {
-    const classDirs = fs.readdirSync(basePathApex, { withFileTypes: true }).filter(e => e.isDirectory());
+    const classDirs = fs.readdirSync(basePathApex, { withFileTypes: true }).filter((e) => e.isDirectory());
     for (const dir of classDirs) {
       const dirPath = path.join(basePathApex, dir.name);
       for (const file of fs.readdirSync(dirPath)) {
@@ -216,7 +235,9 @@ function findAllClasses(basePathApex: string): { allClasses: string[]; className
         }
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { allClasses, classNameToDir };
 }
 
@@ -257,7 +278,21 @@ function extractTsJsApexDependencies(filePath: string): string[] {
 function extractApexDependencies(clsFilePath: string, allClassNames: string[], selfClassName: string): string[] {
   if (!fs.existsSync(clsFilePath)) return [];
   const code = fs.readFileSync(clsFilePath, 'utf8');
-  return allClassNames.filter(
-    (className) => className !== selfClassName && code.includes(className)
-  );
+  return allClassNames.filter((className) => className !== selfClassName && code.includes(className));
+}
+
+function isForbiddenFile(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  return FORBIDDEN_EXTENSIONS.includes(ext);
+}
+
+function* walkDir(dir: string): Generator<string> {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      yield* walkDir(entryPath);
+    } else {
+      yield entryPath;
+    }
+  }
 }

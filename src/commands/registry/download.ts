@@ -32,7 +32,8 @@ type RegistryResponse = Readonly<{
 }>;
 
 export default class RegistryDownload extends SfCommand<void> {
-  public static readonly summary = 'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
+  public static readonly summary =
+    'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
   public static readonly examples = ['$ sf registry download'];
 
   public async run(): Promise<void> {
@@ -67,7 +68,7 @@ export default class RegistryDownload extends SfCommand<void> {
     ]);
 
     // 4. Sélection de la version
-    const entry = entries.find(e => e.name === name);
+    const entry = entries.find((e) => e.name === name);
     if (!entry) this.error(`❌ ${type} "${name}" non trouvé dans le registre.`);
 
     const versions = entry.versions.map((v) => v.version).reverse();
@@ -125,7 +126,8 @@ export default class RegistryDownload extends SfCommand<void> {
       zip.extractAllTo(tmpExtractPath, true);
 
       // 7. Récupération de tous les dossiers extraits (composants/classes)
-      const extractedDirs = fs.readdirSync(tmpExtractPath, { withFileTypes: true })
+      const extractedDirs = fs
+        .readdirSync(tmpExtractPath, { withFileTypes: true })
         .filter((e) => e.isDirectory())
         .map((e) => e.name);
 
@@ -159,7 +161,6 @@ export default class RegistryDownload extends SfCommand<void> {
 
       this.log('✅ Tous les items ont été extraits au bon endroit !');
       await fsExtra.remove(tmpExtractPath);
-
     } finally {
       await fs.promises.rm(zipPath, { force: true }).catch(() => {});
     }
@@ -169,10 +170,7 @@ export default class RegistryDownload extends SfCommand<void> {
 /**
  * Télécharge le catalogue du registre.
  */
-async function fetchRegistry(
-  server: string,
-  cli: SfCommand<void>
-): Promise<RegistryResponse> {
+async function fetchRegistry(server: string, cli: SfCommand<void>): Promise<RegistryResponse> {
   const response = await fetch(`${server}/catalog`);
   if (!response.ok) {
     cli.error(`❌ Erreur HTTP ${response.status}: ${response.statusText}`);
@@ -183,11 +181,8 @@ async function fetchRegistry(
 /**
  * Détecte si un item est un composant ou une classe à partir du registry.
  */
-function getItemType(
-  itemName: string,
-  registry: RegistryResponse
-): 'component' | 'class' | null {
-  if (registry.component.some(c => c.name === itemName)) return 'component';
-  if (registry.class.some(c => c.name === itemName)) return 'class';
+function getItemType(itemName: string, registry: RegistryResponse): 'component' | 'class' | null {
+  if (registry.component.some((c) => c.name === itemName)) return 'component';
+  if (registry.class.some((c) => c.name === itemName)) return 'class';
   return null;
 }
