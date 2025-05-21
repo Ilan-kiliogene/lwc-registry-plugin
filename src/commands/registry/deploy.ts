@@ -39,6 +39,7 @@ type RegistryDep = Readonly<{
   name: string;
   type: ItemType;
   dependencies: Array<{ name: string; type: ItemType }>;
+  staticresources: string[];
 }>;
 
 export default class RegistryDeploy extends SfCommand<void> {
@@ -156,10 +157,19 @@ export default class RegistryDeploy extends SfCommand<void> {
 
       const thisDeps = getItemDependencies(depName, depType);
 
+      // --- Ajout du détail pour staticresources ---
+      let staticResources: string[] 
+      if (depType === 'component') {
+        staticResources = findStaticResourcesUsedForComponent(dirToAdd);
+      } else {
+        staticResources = []
+      }
+
       itemsToZip.push({
         name: depName,
         type: depType,
         dependencies: thisDeps,
+        staticresources: staticResources
       });
 
       for (const dep of thisDeps) {
@@ -168,12 +178,12 @@ export default class RegistryDeploy extends SfCommand<void> {
     };
 
     addWithDependencies(name, type);
-
     // --------- STATIC RESOURCES ---------
     if (staticResourcesUsed.size > 0) {
       const staticResDest = path.join(tmpDir, 'staticresources');
       await mkdir(staticResDest, { recursive: true });
       for (const resName of staticResourcesUsed) {
+        this.log(`resName ${resName}`)
         // Trouve le fichier principal de la ressource (ex : zip, js, png...)
         const mainFile = findStaticResourceFile(STATICRES_DIR, resName);
         if (!mainFile) {
@@ -231,6 +241,8 @@ export default class RegistryDeploy extends SfCommand<void> {
     } finally {
       await rm(zipPath, { force: true });
       await rm(depsJsonPath, { force: true });
+      const staticResDest = path.join(tmpDir, 'staticresources');
+      await rm(staticResDest, { recursive: true, force: true }).catch(() => {});
     }
   }
 }
@@ -353,4 +365,19 @@ function findStaticResourceFile(resourceDir: string, resName: string): string | 
     }
   }
   return null;
+}
+
+function findStaticResourcesUsedForComponent(componentDir: string): string[] {
+  const res = new Set<string>();
+  for (const ext of ['.ts', '.js']) {
+    const filePath = path.join(componentDir, path.basename(componentDir) + ext);
+    if (!fs.existsSync(filePath)) continue;
+    const code = fs.readFileSync(filePath, 'utf8');
+    const regex = /import\s+\w+\s+from\s+["']@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)["']/g;
+    let match;
+    while ((match = regex.exec(code))) {
+      res.add(match[1]);
+    }
+  }
+  return Array.from(res);
 }
