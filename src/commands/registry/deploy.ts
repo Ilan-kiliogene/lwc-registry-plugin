@@ -9,8 +9,23 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 import FormData from 'form-data';
 
 const FORBIDDEN_EXTENSIONS = [
-  '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.exe', '.scr', '.vbs', '.msi',
-  '.php', '.py', '.pl', '.rb', '.jar', '.com', '.wsf',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.bat',
+  '.cmd',
+  '.ps1',
+  '.exe',
+  '.scr',
+  '.vbs',
+  '.msi',
+  '.php',
+  '.py',
+  '.pl',
+  '.rb',
+  '.jar',
+  '.com',
+  '.wsf',
 ];
 
 const STATICRES_DIR = 'force-app/main/default/staticresources';
@@ -162,17 +177,19 @@ export default class RegistryDeploy extends SfCommand<void> {
         // Trouve le fichier principal de la ressource (ex : zip, js, png...)
         const mainFile = findStaticResourceFile(STATICRES_DIR, resName);
         if (!mainFile) {
-          this.error(`❌ Ressource statique "${resName}" manquante dans ${STATICRES_DIR}. (Tu dois avoir le fichier principal, pas uniquement le .resource-meta.xml)`);
+          this.error(
+            `❌ Ressource statique "${resName}" manquante dans ${STATICRES_DIR}. (Tu dois avoir le fichier principal, pas uniquement le .resource-meta.xml)`
+          );
         }
         // Copie le fichier principal
         fs.copyFileSync(mainFile, path.join(staticResDest, path.basename(mainFile)));
-      
+
         // Copie le .resource-meta.xml s’il existe
         const metaFile = path.join(STATICRES_DIR, `${resName}.resource-meta.xml`);
         if (fs.existsSync(metaFile) && fs.statSync(metaFile).isFile()) {
           fs.copyFileSync(metaFile, path.join(staticResDest, `${resName}.resource-meta.xml`));
         }
-      }      
+      }
       zip.addLocalFolder(staticResDest, 'staticresources');
     }
     // ------------------------------------

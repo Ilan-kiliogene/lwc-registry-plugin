@@ -6,9 +6,7 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 
 export default class RegistryTemplate extends SfCommand<void> {
   public static readonly summary = 'Crée un squelette composant LWC ou classe Apex avec meta JSON à compléter';
-  public static readonly examples = [
-    '$ sf registry create'
-  ];
+  public static readonly examples = ['$ sf registry create'];
 
   public async run(): Promise<void> {
     // 1. Choix du type d’item
@@ -19,9 +17,9 @@ export default class RegistryTemplate extends SfCommand<void> {
         message: 'Quel type de template veux-tu créer ?',
         choices: [
           { name: 'Composant LWC', value: 'component' },
-          { name: 'Classe Apex', value: 'class' }
-        ]
-      }
+          { name: 'Classe Apex', value: 'class' },
+        ],
+      },
     ]);
 
     // 2. Saisie du nom
@@ -30,8 +28,8 @@ export default class RegistryTemplate extends SfCommand<void> {
         name: 'name',
         type: 'input',
         message: `Nom du ${type === 'component' ? 'composant LWC' : 'classe Apex'} ?`,
-        validate: (v) => /^[a-zA-Z0-9_]+$/.test(v) || 'Nom invalide (alphanumérique uniquement)'
-      }
+        validate: (v) => /^[a-zA-Z0-9_]+$/.test(v) || 'Nom invalide (alphanumérique uniquement)',
+      },
     ]);
 
     let folder = '';
@@ -43,7 +41,7 @@ export default class RegistryTemplate extends SfCommand<void> {
       this.log('⏳ Création du composant LWC...');
       execSync(`sf lightning component generate --type lwc --name ${name}`, {
         stdio: 'inherit',
-        cwd: lwcParent
+        cwd: lwcParent,
       });
 
       // Renomme le .js en .ts
@@ -63,7 +61,7 @@ export default class RegistryTemplate extends SfCommand<void> {
       this.log('⏳ Création de la classe Apex...');
       execSync(`sf apex class generate --name ${name}`, {
         stdio: 'inherit',
-        cwd: classesParent
+        cwd: classesParent,
       });
 
       // Nouveau dossier pour regrouper les fichiers de la classe
@@ -90,7 +88,7 @@ export default class RegistryTemplate extends SfCommand<void> {
     const metaPath = path.join(folder, 'registry-meta.json');
     const meta = {
       description: '',
-      version: ''
+      version: '',
     };
     fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
     this.log(`✅ Fichier registry-meta.json généré dans ${metaPath}`);
