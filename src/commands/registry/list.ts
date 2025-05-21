@@ -40,9 +40,9 @@ export default class RegistryList extends SfCommand<void> {
         message: 'Que veux-tu afficher ?',
         choices: [
           { name: 'Composants LWC', value: 'component' },
-          { name: 'Classes Apex', value: 'class' }
-        ]
-      }
+          { name: 'Classes Apex', value: 'class' },
+        ],
+      },
     ]);
 
     // 2. Récupération du catalog
@@ -62,8 +62,8 @@ export default class RegistryList extends SfCommand<void> {
       this.log(`- ${item.name}`);
       for (const v of item.versions ?? []) {
         this.log(`    • v${v.version}: ${v.description}`);
-      }      
-    }    
+      }
+    }
     this.log('\n');
   }
 }
