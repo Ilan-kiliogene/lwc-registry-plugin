@@ -9,24 +9,11 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 import FormData from 'form-data';
 
 const FORBIDDEN_EXTENSIONS = [
-  '.sh',
-  '.bash',
-  '.zsh',
-  '.bat',
-  '.cmd',
-  '.ps1',
-  '.exe',
-  '.scr',
-  '.vbs',
-  '.msi',
-  '.php',
-  '.py',
-  '.pl',
-  '.rb',
-  '.jar',
-  '.com',
-  '.wsf',
+  '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.exe', '.scr', '.vbs', '.msi',
+  '.php', '.py', '.pl', '.rb', '.jar', '.com', '.wsf',
 ];
+
+const STATICRES_DIR = 'force-app/main/default/staticresources';
 
 type DeployType = 'component' | 'class';
 
@@ -100,9 +87,15 @@ export default class RegistryDeploy extends SfCommand<void> {
     const added = new Set<string>();
     const itemsToZip: RegistryDep[] = [];
 
+    const staticResourcesUsed = new Set<string>();
+
     const getItemDependencies = (depName: string, depType: ItemType): Array<{ name: string; type: ItemType }> => {
       if (depType === 'component') {
         const compDir = path.join(basePathLwc, depName);
+
+        // Collecte aussi les staticresources dans les .ts et .js
+        findStaticResourcesUsed(compDir, staticResourcesUsed);
+
         const htmlDeps = extractHTMLDependencies(path.join(compDir, `${depName}.html`));
         const tsLwcDeps = extractTsJsLwcDependencies(path.join(compDir, `${depName}.ts`));
         const jsLwcDeps = extractTsJsLwcDependencies(path.join(compDir, `${depName}.js`));
@@ -160,6 +153,29 @@ export default class RegistryDeploy extends SfCommand<void> {
     };
 
     addWithDependencies(name, type);
+
+    // --------- STATIC RESOURCES ---------
+    if (staticResourcesUsed.size > 0) {
+      const staticResDest = path.join(tmpDir, 'staticresources');
+      await mkdir(staticResDest, { recursive: true });
+      for (const resName of staticResourcesUsed) {
+        // Trouve le fichier principal de la ressource (ex : zip, js, png...)
+        const mainFile = findStaticResourceFile(STATICRES_DIR, resName);
+        if (!mainFile) {
+          this.error(`❌ Ressource statique "${resName}" manquante dans ${STATICRES_DIR}. (Tu dois avoir le fichier principal, pas uniquement le .resource-meta.xml)`);
+        }
+        // Copie le fichier principal
+        fs.copyFileSync(mainFile, path.join(staticResDest, path.basename(mainFile)));
+      
+        // Copie le .resource-meta.xml s’il existe
+        const metaFile = path.join(STATICRES_DIR, `${resName}.resource-meta.xml`);
+        if (fs.existsSync(metaFile) && fs.statSync(metaFile).isFile()) {
+          fs.copyFileSync(metaFile, path.join(staticResDest, `${resName}.resource-meta.xml`));
+        }
+      }      
+      zip.addLocalFolder(staticResDest, 'staticresources');
+    }
+    // ------------------------------------
 
     // 6. Ajoute le JSON des dépendances
     const depsJsonPath = path.join(tmpDir, `${name}-registry-deps.json`);
@@ -295,4 +311,29 @@ function* walkDir(dir: string): Generator<string> {
       yield entryPath;
     }
   }
+}
+
+// === Nouvel utilitaire pour détecter les static resources dans ts/js ===
+function findStaticResourcesUsed(componentDir: string, staticResSet: Set<string>): void {
+  for (const ext of ['.ts', '.js']) {
+    const filePath = path.join(componentDir, path.basename(componentDir) + ext);
+    if (!fs.existsSync(filePath)) continue;
+    const code = fs.readFileSync(filePath, 'utf8');
+    const regex = /import\s+\w+\s+from\s+["']@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)["']/g;
+    let match;
+    while ((match = regex.exec(code))) {
+      staticResSet.add(match[1]);
+    }
+  }
+}
+
+// === Recherche la vraie staticresource avec ou sans extension ===
+function findStaticResourceFile(resourceDir: string, resName: string): string | null {
+  const files = fs.readdirSync(resourceDir);
+  for (const file of files) {
+    if (file === resName || file.startsWith(resName + '.')) {
+      return path.join(resourceDir, file);
+    }
+  }
+  return null;
 }
