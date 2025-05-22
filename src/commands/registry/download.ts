@@ -133,6 +133,7 @@ export default class RegistryDownload extends SfCommand<void> {
 
       for (const itemName of extractedDirs) {
         const itemType = getItemType(itemName, registry);
+        if (itemName === 'staticresources') continue; // Ajoute cette ligne
 
         if (!itemType) {
           this.log(`⚠️ Type inconnu pour ${itemName}, ignoré`);
@@ -158,6 +159,29 @@ export default class RegistryDownload extends SfCommand<void> {
         await fsExtra.move(path.join(tmpExtractPath, itemName), destDir);
         this.log(`✅ ${itemType} "${itemName}" extrait dans ${destDir}`);
       }
+
+      // -- GESTION DES STATICRESOURCES --
+      const staticResExtracted = path.join(tmpExtractPath, 'staticresources');
+      if (fs.existsSync(staticResExtracted)) {
+        // Dossier de destination standard Salesforce
+        const staticResTarget = path.join(process.cwd(), 'force-app/main/default/staticresources');
+        if (!fs.existsSync(staticResTarget)) {
+          fsExtra.mkdirpSync(staticResTarget);
+        }
+        const resFiles = fs.readdirSync(staticResExtracted);
+        for (const file of resFiles) {
+          const src = path.join(staticResExtracted, file);
+          const dest = path.join(staticResTarget, file);
+          if (fs.existsSync(dest)) {
+            this.log(`⚠️ Fichier staticresource "${file}" déjà présent dans ${staticResTarget}, non écrasé.`);
+          } else {
+            // eslint-disable-next-line no-await-in-loop
+            await fsExtra.move(src, dest);
+            this.log(`✅ Staticresource "${file}" copié dans ${staticResTarget}`);
+          }
+        }
+      }
+
 
       this.log('✅ Tous les items ont été extraits au bon endroit !');
       await fsExtra.remove(tmpExtractPath);

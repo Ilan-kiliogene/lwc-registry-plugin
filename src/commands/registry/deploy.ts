@@ -40,6 +40,7 @@ type RegistryDep = Readonly<{
   type: ItemType;
   dependencies: Array<{ name: string; type: ItemType }>;
   staticresources: string[];
+  version?: string;
 }>;
 
 export default class RegistryDeploy extends SfCommand<void> {
@@ -81,6 +82,16 @@ export default class RegistryDeploy extends SfCommand<void> {
         type: 'list',
         message: `Quel ${type} veux-tu déployer ?`,
         choices: items,
+      },
+    ]);
+
+    // *** DEMANDER LA VERSION ***
+    const { version } = await inquirer.prompt<{ version: string }>([
+      {
+        name: 'version',
+        type: 'input',
+        message: 'Numéro de version à déployer ? (ex: 1.0.0)',
+        validate: (input) => /^\d+\.\d+\.\d+$/.test(input) ? true : 'Format attendu : x.y.z',
       },
     ]);
 
@@ -139,7 +150,7 @@ export default class RegistryDeploy extends SfCommand<void> {
       }
     };
 
-    const addWithDependencies = (depName: string, depType: ItemType): void => {
+    const addWithDependencies = (depName: string, depType: ItemType, isRoot = false): void => {
       const key = `${depType}:${depName}`;
       if (added.has(key)) return;
       added.add(key);
@@ -165,19 +176,30 @@ export default class RegistryDeploy extends SfCommand<void> {
         staticResources = []
       }
 
-      itemsToZip.push({
-        name: depName,
-        type: depType,
-        dependencies: thisDeps,
-        staticresources: staticResources
-      });
+      // *** AJOUT DE LA VERSION UNIQUEMENT SUR L'ITEM RACINE ***
+      if (isRoot) {
+        itemsToZip.push({
+          name: depName,
+          type: depType,
+          dependencies: thisDeps,
+          staticresources: staticResources,
+          version // <-- version saisie par l'utilisateur
+        });
+      } else {
+        itemsToZip.push({
+          name: depName,
+          type: depType,
+          dependencies: thisDeps,
+          staticresources: staticResources,
+        });
+      }
 
       for (const dep of thisDeps) {
         addWithDependencies(dep.name, dep.type);
       }
     };
 
-    addWithDependencies(name, type);
+    addWithDependencies(name, type, true);
     // --------- STATIC RESOURCES ---------
     if (staticResourcesUsed.size > 0) {
       const staticResDest = path.join(tmpDir, 'staticresources');
@@ -222,6 +244,7 @@ export default class RegistryDeploy extends SfCommand<void> {
     form.append('name', name);
     form.append('description', metadata.description);
     form.append('type', type);
+    form.append('version', version);
 
     this.log(`📤 Envoi de ${name} (${type}) vers ${server}/deploy...`);
 

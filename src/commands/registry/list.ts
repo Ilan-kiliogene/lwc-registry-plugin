@@ -13,6 +13,7 @@ type RegistryVersion = Readonly<{
   description: string;
   hash: string;
   registryDependencies: readonly RegistryDependency[];
+  staticresources?: string[]; // ← Ajouté
 }>;
 
 type RegistryEntry = Readonly<{
@@ -62,6 +63,10 @@ export default class RegistryList extends SfCommand<void> {
       this.log(`- ${item.name}`);
       for (const v of item.versions ?? []) {
         this.log(`    • v${v.version}: ${v.description}`);
+        // === Affiche les staticresources si présentes ===
+        if (type === 'component' && Array.isArray(v.staticresources) && v.staticresources.length > 0) {
+          this.log(`      → StaticResources: ${v.staticresources.join(', ')}`);
+        }
       }
     }
     this.log('\n');
