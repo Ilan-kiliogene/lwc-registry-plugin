@@ -20,7 +20,6 @@ export default class RegistryList extends SfCommand<void> {
         ],
       },
     ]);
-    const label = type === 'component' ? 'Composants LWC' : 'Classes Apex';
 
     let catalog: Registry;
     try {
@@ -28,11 +27,11 @@ export default class RegistryList extends SfCommand<void> {
       if (!res.ok) this.error(`Erreur ${res.status} lors de la récupération du registre`);
       const json = await res.json();
       catalog = registrySchema.parse(json);
-    } catch (e) {
-      this.error('Erreur réseau ou registre invalide : ' + (e instanceof Error ? e.message : String(e)));
-      return;
+    } catch (error) {
+      this.error('Erreur réseau ou registre invalide : ' + (error instanceof Error ? error.message : String(error)));
     }
 
+    const label = type === 'component' ? 'Composants LWC' : 'Classes Apex';
     const items = catalog[type];
     if (!items.length) {
       this.log(kleur.red(`Aucun ${label} trouvé.`));
