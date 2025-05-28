@@ -6,6 +6,8 @@ import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import * as fsExtra from 'fs-extra';
+import { Dependency } from './list';
+
 
 type RegistryDependency = Readonly<{
   name: string;
@@ -187,6 +189,7 @@ export default class RegistryDownload extends SfCommand<void> {
       await fsExtra.remove(tmpExtractPath);
     } finally {
       await fs.promises.rm(zipPath, { force: true }).catch(() => {});
+      await fsExtra.remove(tmpExtractPath).catch(() => {}); // ← ajoute ce catch pour le cas où le dossier n’existerait pas
     }
   }
 }

@@ -1,38 +1,15 @@
 import fetch from 'node-fetch';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
+import { Registry } from '../../types/registry';
 
-type RegistryDependency = Readonly<{
-  name: string;
-  type: 'component' | 'class';
-  version: string;
-}>;
 
-type RegistryVersion = Readonly<{
-  version: string;
-  description: string;
-  hash: string;
-  registryDependencies: readonly RegistryDependency[];
-  staticresources?: string[]; // ← Ajouté
-}>;
-
-type RegistryEntry = Readonly<{
-  name: string;
-  versions: readonly RegistryVersion[];
-}>;
-
-type RegistryResponse = Readonly<{
-  name: string;
-  component: readonly RegistryEntry[];
-  class: readonly RegistryEntry[];
-}>;
 
 export default class RegistryList extends SfCommand<void> {
   public static readonly summary = 'Affiche la liste des composants ou classes du registre';
+  public static readonly examples = ['$ sf registry list'];
 
   public async run(): Promise<void> {
-    const server = 'https://registry.kiliogene.com';
-
     // 1. Demande du type à afficher
     const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
       {
@@ -47,9 +24,9 @@ export default class RegistryList extends SfCommand<void> {
     ]);
 
     // 2. Récupération du catalog
-    const res = await fetch(`${server}/catalog`);
+    const res = await fetch('https://registry.kiliogene.com/catalog');
     if (!res.ok) this.error('Erreur lors de la récupération du registre');
-    const catalog = (await res.json()) as RegistryResponse;
+    const catalog = (await res.json()) as Registry;
 
     const items = catalog[type];
     if (!items || items.length === 0) {

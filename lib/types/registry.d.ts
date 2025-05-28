@@ -1,0 +1,324 @@
+import { z } from 'zod';
+export declare const DependencySchema: z.ZodObject<{
+    name: z.ZodString;
+    type: z.ZodString;
+    version: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    type: string;
+    name: string;
+    version: string;
+}, {
+    type: string;
+    name: string;
+    version: string;
+}>;
+export declare const versionSchema: z.ZodObject<{
+    version: z.ZodString;
+    description: z.ZodString;
+    hash: z.ZodString;
+    staticresources: z.ZodArray<z.ZodString, "many">;
+    registryDependencies: z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        type: z.ZodString;
+        version: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        type: string;
+        name: string;
+        version: string;
+    }, {
+        type: string;
+        name: string;
+        version: string;
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    version: string;
+    description: string;
+    hash: string;
+    staticresources: string[];
+    registryDependencies: {
+        type: string;
+        name: string;
+        version: string;
+    }[];
+}, {
+    version: string;
+    description: string;
+    hash: string;
+    staticresources: string[];
+    registryDependencies: {
+        type: string;
+        name: string;
+        version: string;
+    }[];
+}>;
+export declare const entrySchema: z.ZodObject<{
+    name: z.ZodString;
+    versions: z.ZodArray<z.ZodObject<{
+        version: z.ZodString;
+        description: z.ZodString;
+        hash: z.ZodString;
+        staticresources: z.ZodArray<z.ZodString, "many">;
+        registryDependencies: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            type: z.ZodString;
+            version: z.ZodString;
+        }, "strip", z.ZodTypeAny, {
+            type: string;
+            name: string;
+            version: string;
+        }, {
+            type: string;
+            name: string;
+            version: string;
+        }>, "many">;
+    }, "strip", z.ZodTypeAny, {
+        version: string;
+        description: string;
+        hash: string;
+        staticresources: string[];
+        registryDependencies: {
+            type: string;
+            name: string;
+            version: string;
+        }[];
+    }, {
+        version: string;
+        description: string;
+        hash: string;
+        staticresources: string[];
+        registryDependencies: {
+            type: string;
+            name: string;
+            version: string;
+        }[];
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    versions: {
+        version: string;
+        description: string;
+        hash: string;
+        staticresources: string[];
+        registryDependencies: {
+            type: string;
+            name: string;
+            version: string;
+        }[];
+    }[];
+}, {
+    name: string;
+    versions: {
+        version: string;
+        description: string;
+        hash: string;
+        staticresources: string[];
+        registryDependencies: {
+            type: string;
+            name: string;
+            version: string;
+        }[];
+    }[];
+}>;
+export declare const registrySchema: z.ZodObject<{
+    name: z.ZodString;
+    component: z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        versions: z.ZodArray<z.ZodObject<{
+            version: z.ZodString;
+            description: z.ZodString;
+            hash: z.ZodString;
+            staticresources: z.ZodArray<z.ZodString, "many">;
+            registryDependencies: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                type: z.ZodString;
+                version: z.ZodString;
+            }, "strip", z.ZodTypeAny, {
+                type: string;
+                name: string;
+                version: string;
+            }, {
+                type: string;
+                name: string;
+                version: string;
+            }>, "many">;
+        }, "strip", z.ZodTypeAny, {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }, {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }>, "many">;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }, {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }>, "many">;
+    class: z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        versions: z.ZodArray<z.ZodObject<{
+            version: z.ZodString;
+            description: z.ZodString;
+            hash: z.ZodString;
+            staticresources: z.ZodArray<z.ZodString, "many">;
+            registryDependencies: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                type: z.ZodString;
+                version: z.ZodString;
+            }, "strip", z.ZodTypeAny, {
+                type: string;
+                name: string;
+                version: string;
+            }, {
+                type: string;
+                name: string;
+                version: string;
+            }>, "many">;
+        }, "strip", z.ZodTypeAny, {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }, {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }>, "many">;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }, {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    component: {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }[];
+    class: {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }[];
+    name: string;
+}, {
+    component: {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }[];
+    class: {
+        name: string;
+        versions: {
+            version: string;
+            description: string;
+            hash: string;
+            staticresources: string[];
+            registryDependencies: {
+                type: string;
+                name: string;
+                version: string;
+            }[];
+        }[];
+    }[];
+    name: string;
+}>;
+export type Dependency = z.infer<typeof DependencySchema>;
+export type ComponentOrClassVersion = z.infer<typeof versionSchema>;
+export type ComponentOrClassEntry = z.infer<typeof entrySchema>;
+export type Registry = z.infer<typeof registrySchema>;

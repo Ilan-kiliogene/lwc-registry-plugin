@@ -35,6 +35,7 @@ type DeployType = 'component' | 'class';
 type MetadataBase = { description: string };
 
 type ItemType = 'component' | 'class';
+
 type RegistryDep = Readonly<{
   name: string;
   type: ItemType;
@@ -44,8 +45,7 @@ type RegistryDep = Readonly<{
 }>;
 
 export default class RegistryDeploy extends SfCommand<void> {
-  public static readonly summary =
-    'Déploie un composant LWC ou une classe Apex (et ses dépendances récursives) sur le registre externe';
+  public static readonly summary = 'Déploie un composant LWC ou une classe Apex (et ses dépendances récursives) sur le registre externe';
   public static readonly examples = ['$ sf registry deploy'];
 
   public async run(): Promise<void> {

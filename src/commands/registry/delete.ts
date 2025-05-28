@@ -1,17 +1,7 @@
 import fetch from 'node-fetch';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-
-type RegistryEntry = {
-  name: string;
-  versions: Array<{ version: string; description: string }>;
-};
-type RegistryResponse = {
-  name: string;
-  component: RegistryEntry[];
-  class: RegistryEntry[];
-};
-
+import { Dependency } from './list';
 
 
 
