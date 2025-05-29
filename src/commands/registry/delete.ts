@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { Dependency } from './list';
+import { Registry , registrySchema } from '../../types/registry'
 
 
 
@@ -27,13 +27,21 @@ export default class RegistryDelete extends SfCommand<void> {
       }
     ]);
 
-    // 2. Liste des items
-    const res = await fetch(`${server}/catalog`);
-    if (!res.ok) this.error('Erreur lors de la récupération du registre');
-    const catalog = (await res.json()) as RegistryResponse;
+    let catalog: Registry;
+    try {
+      const res = await fetch(`${server}/catalog`);
+      if (!res.ok) this.error(`Erreur ${res.status} lors de la récupération du registre`);
+      const json = await res.json();
+      catalog = registrySchema.parse(json);
+    } catch (error) {
+      this.error('Erreur réseau ou registre invalide : ' + (error instanceof Error ? error.message : String(error)));
+    }
+
+    const label = type === 'component' ? 'Composants LWC' : 'Classes Apex';
+
     const items = catalog[type];
-    if (!items || items.length === 0) {
-      this.log(`Aucun ${type === 'component' ? 'composant' : 'classe'} à supprimer.`);
+    if (!items.length) {
+      this.log(`Aucun ${label} à supprimer.`);
       return;
     }
 
@@ -41,13 +49,13 @@ export default class RegistryDelete extends SfCommand<void> {
       {
         name: 'name',
         type: 'list',
-        message: `Quel ${type === 'component' ? 'composant' : 'classe'} veux-tu supprimer ?`,
-        choices: items.map(e => e.name)
+        message: `Quel ${label} veux-tu supprimer ?`,
+        choices: items.map(element => element.name)
       }
     ]);
 
     // 3. Choix de la version ou toutes les versions
-    const selectedEntry = items.find(e => e.name === name);
+    const selectedEntry = items.find(element => element.name === name);
     if (!selectedEntry) {
       this.error('Élément introuvable.');
     }
@@ -60,7 +68,7 @@ export default class RegistryDelete extends SfCommand<void> {
           type: 'list',
           message: 'Supprimer une version spécifique ou toutes ?',
           choices: [
-            ...selectedEntry.versions.map(v => ({ name: `v${v.version} - ${v.description}`, value: v.version })),
+            ...selectedEntry.versions.map(versions => ({ name: `v${versions.version} - ${versions.description}`, value: versions.version })),
             { name: 'Toutes les versions', value: 'ALL' }
           ]
         }

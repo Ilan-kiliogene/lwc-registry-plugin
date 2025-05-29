@@ -24,7 +24,6 @@ export const entrySchema = z.object({
 
 // Schéma du registre complet
 export const registrySchema = z.object({
-  name: z.string(),
   component: z.array(entrySchema),
   class: z.array(entrySchema),
 })
