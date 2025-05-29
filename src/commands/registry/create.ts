@@ -35,9 +35,9 @@ export default class RegistryTemplate extends SfCommand<void> {
 
       let folder: string;
       if (type === 'component') {
-        folder = await this.createLwcComponent(name);
+        folder = this.createLwcComponent(name);
       } else {
-        folder = await this.createApexClass(name);
+        folder = this.createApexClass(name);
       }
 
       // 3. Création du JSON meta (dans le bon dossier)
@@ -61,7 +61,7 @@ export default class RegistryTemplate extends SfCommand<void> {
     }
   }
 
-  private async createLwcComponent(name: string): Promise<string> {
+  private createLwcComponent(name: string): string {
     const lwcParent = path.join('force-app', 'main', 'default', 'lwc');
     const folder = path.join(lwcParent, name);
 
@@ -93,7 +93,7 @@ export default class RegistryTemplate extends SfCommand<void> {
     return folder;
   }
 
-  private async createApexClass(name: string): Promise<string> {
+  private createApexClass(name: string): string {
     const classesParent = path.join('force-app', 'main', 'default', 'classes');
     const folder = path.join(classesParent, name);
 

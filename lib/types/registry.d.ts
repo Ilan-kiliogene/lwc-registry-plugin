@@ -120,7 +120,6 @@ export declare const entrySchema: z.ZodObject<{
     }[];
 }>;
 export declare const registrySchema: z.ZodObject<{
-    name: z.ZodString;
     component: z.ZodArray<z.ZodObject<{
         name: z.ZodString;
         versions: z.ZodArray<z.ZodObject<{
@@ -286,7 +285,6 @@ export declare const registrySchema: z.ZodObject<{
             }[];
         }[];
     }[];
-    name: string;
 }, {
     component: {
         name: string;
@@ -316,7 +314,6 @@ export declare const registrySchema: z.ZodObject<{
             }[];
         }[];
     }[];
-    name: string;
 }>;
 export type Dependency = z.infer<typeof DependencySchema>;
 export type ComponentOrClassVersion = z.infer<typeof versionSchema>;
