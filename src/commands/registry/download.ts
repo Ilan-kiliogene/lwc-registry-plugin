@@ -1,8 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import os from 'os'
+import os from 'node:os'
 import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
@@ -142,56 +141,78 @@ export default class RegistryDownload extends SfCommand<void> {
     registry: Registry,
     customTarget: string | null,
   ): Promise<void> {
+    // 1. Extraction des composants/classes
     const extractedDirs = fs
       .readdirSync(tmpExtractPath, { withFileTypes: true })
-      .filter((element) => element.isDirectory())
-      .map((element) => element.name);
-
-    for (const itemName of extractedDirs) {
-      if (itemName === 'staticresources') continue;
-      const itemType = getItemType(itemName, registry);
-      if (!itemType) {
-        this.log(`⚠️ Type inconnu pour ${itemName}, ignoré`);
-        continue;
-      }
-
-      let destDir: string;
-      if (customTarget) {
-        destDir = path.join(
-          path.isAbsolute(customTarget) ? customTarget : path.join(process.cwd(), customTarget),
-          itemName,
-        );
-      } else if (itemType === 'component') {
-        destDir = path.join(process.cwd(), 'force-app/main/default/lwc', itemName);
-      } else {
-        destDir = path.join(process.cwd(), 'force-app/main/default/classes', itemName);
-      }
-
-      if (fs.existsSync(destDir)) {
-        this.error(`❌ ${itemType} "${itemName}" existe déjà dans ${destDir}.`);
-      }
-      await fsExtra.move(path.join(tmpExtractPath, itemName), destDir);
-      this.log(`✅ ${itemType} "${itemName}" extrait dans ${destDir}`);
-    }
-
-    // Gestion des staticresources
+      .filter(e => e.isDirectory() && e.name !== 'staticresources')
+      .map(e => e.name);
+  
+    await Promise.all(
+      extractedDirs.map(async (itemName) => {
+        if (itemName === 'staticresources') return;
+        const itemType = getItemType(itemName, registry);
+        if (!itemType) {
+          this.log(`⚠️ Type inconnu pour "${itemName}", ignoré.`);
+          return;
+        }
+    
+        let destDir: string;
+        if (customTarget) {
+          const base = path.isAbsolute(customTarget)
+            ? customTarget
+            : path.join(process.cwd(), customTarget);
+          destDir = path.join(base, itemName);
+        } else if (itemType === 'component') {
+          destDir = path.join(process.cwd(), 'force-app/main/default/lwc', itemName);
+        } else {
+          destDir = path.join(process.cwd(), 'force-app/main/default/classes', itemName);
+        }
+    
+        if (fs.existsSync(destDir)) {
+          this.log(`⚠️  ${itemType} "${itemName}" existe déjà dans ${destDir}. Ignoré.`);
+          return;
+        }
+    
+        try {
+          await fsExtra.move(path.join(tmpExtractPath, itemName), destDir, { overwrite: false });
+          this.log(`✅ ${itemType} "${itemName}" extrait dans ${destDir}`);
+        } catch (error) {
+          this.log(`❌ Erreur lors de l'extraction de "${itemName}": ${error instanceof Error ? error.message : String(error)}`);
+        }
+      })
+    );
+      
+  
+    // 2. Gestion des staticresources (parallèle)
     const staticResExtracted = path.join(tmpExtractPath, 'staticresources');
     if (fs.existsSync(staticResExtracted)) {
       const staticResTarget = path.join(process.cwd(), 'force-app/main/default/staticresources');
-      fsExtra.mkdirpSync(staticResTarget);
-      const resFiles = fs.readdirSync(staticResExtracted);
-      for (const file of resFiles) {
-        const src = path.join(staticResExtracted, file);
-        const dest = path.join(staticResTarget, file);
-        if (fs.existsSync(dest)) {
-          this.log(`⚠️ Fichier staticresource "${file}" déjà présent dans ${staticResTarget}, non écrasé.`);
-        } else {
-          await fsExtra.move(src, dest);
-          this.log(`✅ Staticresource "${file}" copié dans ${staticResTarget}`);
-        }
+      try {
+        fsExtra.mkdirpSync(staticResTarget);
+        const resFiles = fs.readdirSync(staticResExtracted);
+  
+        await Promise.all(
+          resFiles.map(async (file) => {
+            const src = path.join(staticResExtracted, file);
+            const dest = path.join(staticResTarget, file);
+            if (fs.existsSync(dest)) {
+              this.log(`⚠️  Fichier staticresource "${file}" déjà présent dans ${staticResTarget}, non écrasé.`);
+            } else {
+              try {
+                await fsExtra.move(src, dest, { overwrite: false });
+                this.log(`✅ Staticresource "${file}" copié dans ${staticResTarget}`);
+              } catch (error) {
+                this.log(`❌ Erreur lors de la copie de staticresource "${file}": ${error instanceof Error ? error.message : String(error)}`);
+              }
+            }
+          })
+        );
+      } catch (error) {
+        this.log(`❌ Erreur lors du traitement des staticresources: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
+  
 }
 
 function getItemType(itemName: string, registry: Registry): 'component' | 'class' | null {
