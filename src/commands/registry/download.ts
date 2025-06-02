@@ -1,12 +1,15 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { mkdir } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import os from 'os'
 import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import * as fsExtra from 'fs-extra';
 import { Registry, registrySchema } from '../../types/registry';
+
 
 export default class RegistryDownload extends SfCommand<void> {
   public static readonly summary = 'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
@@ -35,8 +38,8 @@ export default class RegistryDownload extends SfCommand<void> {
       if (!response.ok) this.error(`Erreur ${response.status} lors de la récupération du registre : ${response.statusText}`);
       const json = await response.json();
       registry = registrySchema.parse(json);
-    } catch (e) {
-      this.error(e instanceof Error ? e.message : String(e));
+    } catch (error) {
+      this.error(error instanceof Error ? error.message : String(error));
     }
 
     // 3. Sélection de l’élément à télécharger
@@ -50,12 +53,12 @@ export default class RegistryDownload extends SfCommand<void> {
         name: 'name',
         type: 'list',
         message: `Quel ${label} veux-tu télécharger ?`,
-        choices: entries.map((e) => e.name),
+        choices: entries.map((element) => element.name),
       },
     ]);
 
     // 4. Sélection de la version
-    const entry = entries.find((e) => e.name === name);
+    const entry = entries.find((element) => element.name === name);
     if (!entry) this.error(`❌ ${label} "${name}" non trouvé dans le registre.`);
     const versions = entry.versions.map((v) => v.version).reverse();
 
@@ -96,8 +99,8 @@ export default class RegistryDownload extends SfCommand<void> {
     // 6. Téléchargement et extraction
     try {
       await this.downloadAndExtract(server, type, name, version, registry, customTarget);
-    } catch (e) {
-      this.error(e instanceof Error ? e.message : String(e));
+    } catch (error) {
+      this.error(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -110,8 +113,8 @@ export default class RegistryDownload extends SfCommand<void> {
     customTarget: string | null,
   ): Promise<void> {
     const url = `${server}/download/${type}/${name}/${version}`;
-    const zipPath = path.join('/tmp', `${name}-${version}.zip`);
-    const tmpExtractPath = path.join('/tmp', `registry-download-${Date.now()}`);
+    const zipPath = path.join(os.tmpdir(), `${name}-${version}-${randomUUID()}.zip`);
+    const tmpExtractPath = path.join(os.tmpdir(), `registry-download-${randomUUID()}`);
 
     this.log(`📥 Téléchargement depuis ${url}...`);
     const res = await fetch(url);
@@ -119,7 +122,6 @@ export default class RegistryDownload extends SfCommand<void> {
 
     try {
       const buffer = Buffer.from(await res.arrayBuffer());
-      await mkdir('/tmp', { recursive: true });
       await fs.promises.writeFile(zipPath, buffer);
 
       const zip = new AdmZip(zipPath);
@@ -130,7 +132,7 @@ export default class RegistryDownload extends SfCommand<void> {
 
       this.log('✅ Tous les items ont été extraits au bon endroit !');
     } finally {
-      await fs.promises.rm(zipPath, { force: true }).catch(() => {});
+      await fsExtra.remove(zipPath).catch(() => {});
       await fsExtra.remove(tmpExtractPath).catch(() => {});
     }
   }
@@ -142,8 +144,8 @@ export default class RegistryDownload extends SfCommand<void> {
   ): Promise<void> {
     const extractedDirs = fs
       .readdirSync(tmpExtractPath, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
+      .filter((element) => element.isDirectory())
+      .map((element) => element.name);
 
     for (const itemName of extractedDirs) {
       if (itemName === 'staticresources') continue;

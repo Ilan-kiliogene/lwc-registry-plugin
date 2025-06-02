@@ -7,9 +7,7 @@ import { Registry , registrySchema } from '../../types/registry'
 
 export default class RegistryDelete extends SfCommand<void> {
   public static readonly summary = 'Supprime un composant ou une classe du registre';
-  public static readonly examples = [
-    '$ sf registry delete'
-  ];
+  public static readonly examples = ['$ sf registry delete'];
 
   public async run(): Promise<void> {
     const server = 'https://registry.kiliogene.com';

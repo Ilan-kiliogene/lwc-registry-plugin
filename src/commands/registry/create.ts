@@ -57,7 +57,7 @@ export default class RegistryTemplate extends SfCommand<void> {
       this.log('📝 Remplis les champs "description" et "version" avant de déployer !');
 
     } catch (error) {
-      this.log(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -87,7 +87,7 @@ export default class RegistryTemplate extends SfCommand<void> {
         this.log(`⚠️ Fichier JS introuvable pour renommer en TS (${jsFile})`);
       }
     } catch (error) {
-      this.log(`❌ Erreur lors du renommage en TS : ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`❌ Erreur lors du renommage en TS : ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return folder;
@@ -114,7 +114,7 @@ export default class RegistryTemplate extends SfCommand<void> {
         fs.mkdirSync(folder, { recursive: true });
       }
     } catch (error) {
-      this.log(`❌ Erreur création du dossier ${folder} : ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`❌ Erreur création du dossier ${folder} : ${error instanceof Error ? error.message : String(error)}`);
     }
 
     // Déplace les fichiers générés dans le sous-dossier
