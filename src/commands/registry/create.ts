@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
+import { findProjectRoot } from '../../utils/registry';
 
 export default class RegistryTemplate extends SfCommand<void> {
   public static readonly summary = 'Crée un squelette composant LWC ou classe Apex avec meta JSON à compléter';
@@ -33,12 +34,7 @@ export default class RegistryTemplate extends SfCommand<void> {
         },
       ]);
 
-      let folder: string;
-      if (type === 'component') {
-        folder = this.createLwcComponent(name);
-      } else {
-        folder = this.createApexClass(name);
-      }
+      const folder = this.getTargetFolder(type, name);
 
       // 3. Création du JSON meta (dans le bon dossier)
       const metaPath = path.join(folder, 'registry-meta.json');
@@ -62,7 +58,8 @@ export default class RegistryTemplate extends SfCommand<void> {
   }
 
   private createLwcComponent(name: string): string {
-    const lwcParent = path.join('force-app', 'main', 'default', 'lwc');
+    const projectRoot = findProjectRoot(process.cwd());
+    const lwcParent = path.join(projectRoot,'force-app', 'main', 'default', 'lwc');
     const folder = path.join(lwcParent, name);
 
     try {
@@ -94,7 +91,8 @@ export default class RegistryTemplate extends SfCommand<void> {
   }
 
   private createApexClass(name: string): string {
-    const classesParent = path.join('force-app', 'main', 'default', 'classes');
+    const projectRoot = findProjectRoot(process.cwd());
+    const classesParent = path.join(projectRoot,'force-app', 'main', 'default', 'classes');
     const folder = path.join(classesParent, name);
 
     try {
@@ -134,5 +132,12 @@ export default class RegistryTemplate extends SfCommand<void> {
     }
 
     return folder;
+  }
+  
+  private getTargetFolder(type: 'component' | 'class', name: string): string {
+    if (type === 'component') {
+      return this.createLwcComponent(name);
+    }
+    return this.createApexClass(name);
   }
 }

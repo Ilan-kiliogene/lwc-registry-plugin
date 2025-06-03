@@ -1,9 +1,7 @@
 import fetch from 'node-fetch';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { Registry , registrySchema } from '../../types/registry'
-
-
+import { fetchCatalog } from '../../utils/registry';
 
 export default class RegistryDelete extends SfCommand<void> {
   public static readonly summary = 'Supprime un composant ou une classe du registre';
@@ -20,20 +18,16 @@ export default class RegistryDelete extends SfCommand<void> {
         message: 'Supprimer un composant ou une classe ?',
         choices: [
           { name: 'Composant LWC', value: 'component' },
-          { name: 'Classe Apex', value: 'class' }
-        ]
-      }
+          { name: 'Classe Apex', value: 'class' },
+        ],
+      },
     ]);
 
-    let catalog: Registry;
-    try {
-      const res = await fetch(`${server}/catalog`);
-      if (!res.ok) this.error(`Erreur ${res.status} lors de la récupération du registre`);
-      const json = await res.json();
-      catalog = registrySchema.parse(json);
-    } catch (error) {
-      this.error('Erreur réseau ou registre invalide : ' + (error instanceof Error ? error.message : String(error)));
+    const resultFetchCatalog = await fetchCatalog(server);;
+    if (!resultFetchCatalog.ok) {
+      this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
     }
+    const catalog = resultFetchCatalog.data;
 
     const label = type === 'component' ? 'Composants LWC' : 'Classes Apex';
 
@@ -48,12 +42,12 @@ export default class RegistryDelete extends SfCommand<void> {
         name: 'name',
         type: 'list',
         message: `Quel ${label} veux-tu supprimer ?`,
-        choices: items.map(element => element.name)
-      }
+        choices: items.map((element) => element.name),
+      },
     ]);
 
     // 3. Choix de la version ou toutes les versions
-    const selectedEntry = items.find(element => element.name === name);
+    const selectedEntry = items.find((element) => element.name === name);
     if (!selectedEntry) {
       this.error('Élément introuvable.');
     }
@@ -66,10 +60,13 @@ export default class RegistryDelete extends SfCommand<void> {
           type: 'list',
           message: 'Supprimer une version spécifique ou toutes ?',
           choices: [
-            ...selectedEntry.versions.map(versions => ({ name: `v${versions.version} - ${versions.description}`, value: versions.version })),
-            { name: 'Toutes les versions', value: 'ALL' }
-          ]
-        }
+            ...selectedEntry.versions.map((versions) => ({
+              name: `v${versions.version} - ${versions.description}`,
+              value: versions.version,
+            })),
+            { name: 'Toutes les versions', value: 'ALL' },
+          ],
+        },
       ]);
       version = which !== 'ALL' ? which : null;
     }
@@ -82,8 +79,8 @@ export default class RegistryDelete extends SfCommand<void> {
       {
         name: 'ok',
         type: 'confirm',
-        message: confirmMsg
-      }
+        message: confirmMsg,
+      },
     ]);
     if (!ok) {
       this.log('Suppression annulée.');

@@ -5,4 +5,5 @@ export default class RegistryTemplate extends SfCommand<void> {
     run(): Promise<void>;
     private createLwcComponent;
     private createApexClass;
+    private getTargetFolder;
 }

@@ -4,12 +4,12 @@ export declare const DependencySchema: z.ZodObject<{
     type: z.ZodString;
     version: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    type: string;
     name: string;
+    type: string;
     version: string;
 }, {
-    type: string;
     name: string;
+    type: string;
     version: string;
 }>;
 export declare const versionSchema: z.ZodObject<{
@@ -22,12 +22,12 @@ export declare const versionSchema: z.ZodObject<{
         type: z.ZodString;
         version: z.ZodString;
     }, "strip", z.ZodTypeAny, {
-        type: string;
         name: string;
+        type: string;
         version: string;
     }, {
-        type: string;
         name: string;
+        type: string;
         version: string;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
@@ -36,8 +36,8 @@ export declare const versionSchema: z.ZodObject<{
     hash: string;
     staticresources: string[];
     registryDependencies: {
-        type: string;
         name: string;
+        type: string;
         version: string;
     }[];
 }, {
@@ -46,8 +46,8 @@ export declare const versionSchema: z.ZodObject<{
     hash: string;
     staticresources: string[];
     registryDependencies: {
-        type: string;
         name: string;
+        type: string;
         version: string;
     }[];
 }>;
@@ -63,12 +63,12 @@ export declare const entrySchema: z.ZodObject<{
             type: z.ZodString;
             version: z.ZodString;
         }, "strip", z.ZodTypeAny, {
-            type: string;
             name: string;
+            type: string;
             version: string;
         }, {
-            type: string;
             name: string;
+            type: string;
             version: string;
         }>, "many">;
     }, "strip", z.ZodTypeAny, {
@@ -77,8 +77,8 @@ export declare const entrySchema: z.ZodObject<{
         hash: string;
         staticresources: string[];
         registryDependencies: {
-            type: string;
             name: string;
+            type: string;
             version: string;
         }[];
     }, {
@@ -87,8 +87,8 @@ export declare const entrySchema: z.ZodObject<{
         hash: string;
         staticresources: string[];
         registryDependencies: {
-            type: string;
             name: string;
+            type: string;
             version: string;
         }[];
     }>, "many">;
@@ -100,8 +100,8 @@ export declare const entrySchema: z.ZodObject<{
         hash: string;
         staticresources: string[];
         registryDependencies: {
-            type: string;
             name: string;
+            type: string;
             version: string;
         }[];
     }[];
@@ -113,8 +113,8 @@ export declare const entrySchema: z.ZodObject<{
         hash: string;
         staticresources: string[];
         registryDependencies: {
-            type: string;
             name: string;
+            type: string;
             version: string;
         }[];
     }[];
@@ -132,12 +132,12 @@ export declare const registrySchema: z.ZodObject<{
                 type: z.ZodString;
                 version: z.ZodString;
             }, "strip", z.ZodTypeAny, {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }, {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }>, "many">;
         }, "strip", z.ZodTypeAny, {
@@ -146,8 +146,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }, {
@@ -156,8 +156,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }>, "many">;
@@ -169,8 +169,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -182,8 +182,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -200,12 +200,12 @@ export declare const registrySchema: z.ZodObject<{
                 type: z.ZodString;
                 version: z.ZodString;
             }, "strip", z.ZodTypeAny, {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }, {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }>, "many">;
         }, "strip", z.ZodTypeAny, {
@@ -214,8 +214,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }, {
@@ -224,8 +224,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }>, "many">;
@@ -237,8 +237,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -250,8 +250,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -265,8 +265,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -279,8 +279,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -294,8 +294,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -308,8 +308,8 @@ export declare const registrySchema: z.ZodObject<{
             hash: string;
             staticresources: string[];
             registryDependencies: {
-                type: string;
                 name: string;
+                type: string;
                 version: string;
             }[];
         }[];
@@ -319,3 +319,11 @@ export type Dependency = z.infer<typeof DependencySchema>;
 export type ComponentOrClassVersion = z.infer<typeof versionSchema>;
 export type ComponentOrClassEntry = z.infer<typeof entrySchema>;
 export type Registry = z.infer<typeof registrySchema>;
+export declare function findProjectRoot(currentDir: string): string;
+export declare function fetchCatalog(server: string): Promise<{
+    ok: true;
+    data: Registry;
+} | {
+    ok: false;
+    error: string;
+}>;

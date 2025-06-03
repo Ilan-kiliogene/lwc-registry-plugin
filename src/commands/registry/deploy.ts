@@ -317,7 +317,7 @@ function extractHTMLDependencies(filePath: string): string[] {
   const dependencies = new Set<string>();
   let match;
   while ((match = regex.exec(html))) {
-    dependencies.add(match[1]);
+    dependencies.add(match[1]);  
   }
   return [...dependencies];
 }

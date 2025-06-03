@@ -1,23 +1,21 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import os from 'node:os'
+import os from 'node:os';
 import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import * as fsExtra from 'fs-extra';
-import { Registry, registrySchema } from '../../types/registry';
-
+import { Registry, fetchCatalog } from '../../utils/registry';
 
 export default class RegistryDownload extends SfCommand<void> {
-  public static readonly summary = 'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
+  public static readonly summary =
+    'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
   public static readonly examples = ['$ sf registry download'];
 
   public async run(): Promise<void> {
     const server = 'https://registry.kiliogene.com';
-    let registry: Registry;
-
     // 1. Choix du type à télécharger
     const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
       {
@@ -31,18 +29,14 @@ export default class RegistryDownload extends SfCommand<void> {
       },
     ]);
 
-    // 2. Récupération du registre complet
-    try {
-      const response = await fetch(`${server}/catalog`);
-      if (!response.ok) this.error(`Erreur ${response.status} lors de la récupération du registre : ${response.statusText}`);
-      const json = await response.json();
-      registry = registrySchema.parse(json);
-    } catch (error) {
-      this.error(error instanceof Error ? error.message : String(error));
-    }
+   const resultFetchCatalog = await fetchCatalog(server);;
+  if (!resultFetchCatalog.ok) {
+    this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
+  }
+  const catalog = resultFetchCatalog.data;
 
     // 3. Sélection de l’élément à télécharger
-    const entries = registry[type];
+    const entries = catalog[type];
     const label = type === 'component' ? 'Composant LWC' : 'Classe Apex';
 
     if (!entries.length) this.error(`❌ Aucun ${label} disponible dans le registre.`);
@@ -76,10 +70,7 @@ export default class RegistryDownload extends SfCommand<void> {
         name: 'choice',
         type: 'list',
         message: 'Dossier cible ? (les composants LWC iront dans lwc, les classes dans classes)',
-        choices: [
-          'force-app/main/default/',
-          'Autre...',
-        ],
+        choices: ['force-app/main/default/', 'Autre...'],
       },
     ]);
 
@@ -97,7 +88,7 @@ export default class RegistryDownload extends SfCommand<void> {
 
     // 6. Téléchargement et extraction
     try {
-      await this.downloadAndExtract(server, type, name, version, registry, customTarget);
+      await this.downloadAndExtract(server, type, name, version, catalog, customTarget);
     } catch (error) {
       this.error(error instanceof Error ? error.message : String(error));
     }
@@ -109,7 +100,7 @@ export default class RegistryDownload extends SfCommand<void> {
     name: string,
     version: string,
     registry: Registry,
-    customTarget: string | null,
+    customTarget: string | null
   ): Promise<void> {
     const url = `${server}/download/${type}/${name}/${version}`;
     const zipPath = path.join(os.tmpdir(), `${name}-${version}-${randomUUID()}.zip`);
@@ -139,14 +130,14 @@ export default class RegistryDownload extends SfCommand<void> {
   private async handleExtraction(
     tmpExtractPath: string,
     registry: Registry,
-    customTarget: string | null,
+    customTarget: string | null
   ): Promise<void> {
     // 1. Extraction des composants/classes
     const extractedDirs = fs
       .readdirSync(tmpExtractPath, { withFileTypes: true })
-      .filter(e => e.isDirectory() && e.name !== 'staticresources')
-      .map(e => e.name);
-  
+      .filter((e) => e.isDirectory() && e.name !== 'staticresources')
+      .map((e) => e.name);
+
     await Promise.all(
       extractedDirs.map(async (itemName) => {
         if (itemName === 'staticresources') return;
@@ -155,34 +146,33 @@ export default class RegistryDownload extends SfCommand<void> {
           this.log(`⚠️ Type inconnu pour "${itemName}", ignoré.`);
           return;
         }
-    
+
         let destDir: string;
         if (customTarget) {
-          const base = path.isAbsolute(customTarget)
-            ? customTarget
-            : path.join(process.cwd(), customTarget);
+          const base = path.isAbsolute(customTarget) ? customTarget : path.join(process.cwd(), customTarget);
           destDir = path.join(base, itemName);
         } else if (itemType === 'component') {
           destDir = path.join(process.cwd(), 'force-app/main/default/lwc', itemName);
         } else {
           destDir = path.join(process.cwd(), 'force-app/main/default/classes', itemName);
         }
-    
+
         if (fs.existsSync(destDir)) {
           this.log(`⚠️  ${itemType} "${itemName}" existe déjà dans ${destDir}. Ignoré.`);
           return;
         }
-    
+
         try {
           await fsExtra.move(path.join(tmpExtractPath, itemName), destDir, { overwrite: false });
           this.log(`✅ ${itemType} "${itemName}" extrait dans ${destDir}`);
         } catch (error) {
-          this.log(`❌ Erreur lors de l'extraction de "${itemName}": ${error instanceof Error ? error.message : String(error)}`);
+          this.log(
+            `❌ Erreur lors de l'extraction de "${itemName}": ${error instanceof Error ? error.message : String(error)}`
+          );
         }
       })
     );
-      
-  
+
     // 2. Gestion des staticresources (parallèle)
     const staticResExtracted = path.join(tmpExtractPath, 'staticresources');
     if (fs.existsSync(staticResExtracted)) {
@@ -190,7 +180,7 @@ export default class RegistryDownload extends SfCommand<void> {
       try {
         fsExtra.mkdirpSync(staticResTarget);
         const resFiles = fs.readdirSync(staticResExtracted);
-  
+
         await Promise.all(
           resFiles.map(async (file) => {
             const src = path.join(staticResExtracted, file);
@@ -202,17 +192,22 @@ export default class RegistryDownload extends SfCommand<void> {
                 await fsExtra.move(src, dest, { overwrite: false });
                 this.log(`✅ Staticresource "${file}" copié dans ${staticResTarget}`);
               } catch (error) {
-                this.log(`❌ Erreur lors de la copie de staticresource "${file}": ${error instanceof Error ? error.message : String(error)}`);
+                this.log(
+                  `❌ Erreur lors de la copie de staticresource "${file}": ${
+                    error instanceof Error ? error.message : String(error)
+                  }`
+                );
               }
             }
           })
         );
       } catch (error) {
-        this.log(`❌ Erreur lors du traitement des staticresources: ${error instanceof Error ? error.message : String(error)}`);
+        this.log(
+          `❌ Erreur lors du traitement des staticresources: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     }
   }
-  
 }
 
 function getItemType(itemName: string, registry: Registry): 'component' | 'class' | null {
