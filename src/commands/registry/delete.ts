@@ -23,7 +23,7 @@ export default class RegistryDelete extends SfCommand<void> {
       },
     ]);
 
-    const resultFetchCatalog = await fetchCatalog(server);;
+    const resultFetchCatalog = await fetchCatalog(server);
     if (!resultFetchCatalog.ok) {
       this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
     }
