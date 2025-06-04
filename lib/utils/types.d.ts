@@ -319,11 +319,3 @@ export type Dependency = z.infer<typeof DependencySchema>;
 export type ComponentOrClassVersion = z.infer<typeof versionSchema>;
 export type ComponentOrClassEntry = z.infer<typeof entrySchema>;
 export type Registry = z.infer<typeof registrySchema>;
-export declare function findProjectRoot(currentDir: string): string;
-export declare function fetchCatalog(server: string): Promise<{
-    ok: true;
-    data: Registry;
-} | {
-    ok: false;
-    error: string;
-}>;

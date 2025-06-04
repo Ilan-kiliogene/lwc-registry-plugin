@@ -7,33 +7,24 @@ import AdmZip from 'adm-zip';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import * as fsExtra from 'fs-extra';
-import { Registry, fetchCatalog } from '../../utils/registry';
+import { Registry } from '../../utils/types.js';
+import { SERVER_URL } from '../../utils/constants.js';
+import { fetchCatalog, promptComponentOrClass, promptSelectName } from '../../utils/functions.js';
 
 export default class RegistryDownload extends SfCommand<void> {
+  // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
   public static readonly summary =
     'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
   public static readonly examples = ['$ sf registry download'];
 
   public async run(): Promise<void> {
-    const server = 'https://registry.kiliogene.com';
-    // 1. Choix du type à télécharger
-    const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
-      {
-        name: 'type',
-        type: 'list',
-        message: 'Que veux-tu télécharger ?',
-        choices: [
-          { name: 'Composant LWC', value: 'component' },
-          { name: 'Classe Apex', value: 'class' },
-        ],
-      },
-    ]);
+    const type = await promptComponentOrClass('Que veux-tu télécharger ?');
 
-   const resultFetchCatalog = await fetchCatalog(server);
-  if (!resultFetchCatalog.ok) {
-    this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
-  }
-  const catalog = resultFetchCatalog.data;
+    const resultFetchCatalog = await fetchCatalog(SERVER_URL);
+    if (!resultFetchCatalog.ok) {
+      this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
+    }
+    const catalog = resultFetchCatalog.data;
 
     // 3. Sélection de l’élément à télécharger
     const entries = catalog[type];
@@ -41,14 +32,8 @@ export default class RegistryDownload extends SfCommand<void> {
 
     if (!entries.length) this.error(`❌ Aucun ${label} disponible dans le registre.`);
 
-    const { name } = await inquirer.prompt<{ name: string }>([
-      {
-        name: 'name',
-        type: 'list',
-        message: `Quel ${label} veux-tu télécharger ?`,
-        choices: entries.map((element) => element.name),
-      },
-    ]);
+    const name = await promptSelectName(`Quel ${label} veux-tu télécharger ?`, entries.map(e => e.name));
+
 
     // 4. Sélection de la version
     const entry = entries.find((element) => element.name === name);
@@ -88,7 +73,7 @@ export default class RegistryDownload extends SfCommand<void> {
 
     // 6. Téléchargement et extraction
     try {
-      await this.downloadAndExtract(server, type, name, version, catalog, customTarget);
+      await this.downloadAndExtract(SERVER_URL, type, name, version, catalog, customTarget);
     } catch (error) {
       this.error(error instanceof Error ? error.message : String(error));
     }

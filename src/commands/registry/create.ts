@@ -1,65 +1,39 @@
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
-import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { findProjectRoot } from '../../utils/registry';
+import { findProjectRoot, promptComponentOrClass, promptValidName } from '../../utils/functions.js';
 
 export default class RegistryTemplate extends SfCommand<void> {
+  // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
   public static readonly summary = 'Crée un squelette composant LWC ou classe Apex avec meta JSON à compléter';
   public static readonly examples = ['$ sf registry create'];
 
   public async run(): Promise<void> {
     try {
-      // 1. Choix du type d’item
-      const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
-        {
-          name: 'type',
-          type: 'list',
-          message: 'Quel type de template veux-tu créer ?',
-          choices: [
-            { name: 'Composant LWC', value: 'component' },
-            { name: 'Classe Apex', value: 'class' },
-          ],
-        },
-      ]);
-
-      // 2. Saisie du nom
-      const { name } = await inquirer.prompt<{ name: string }>([
-        {
-          name: 'name',
-          type: 'input',
-          message: `Nom du ${type === 'component' ? 'composant LWC' : 'classe Apex'} ?`,
-          validate: (v) => /^[a-zA-Z0-9_]+$/.test(v) || 'Nom invalide (alphanumérique uniquement)',
-        },
-      ]);
-
+      const type = await promptComponentOrClass('Quel type de template veux-tu créer ?');    
+      const cleanType = type === 'component' ? 'composant LWC' : 'classe Apex';
+      const name = await promptValidName(cleanType)
       const folder = this.getTargetFolder(type, name);
-
-      // 3. Création du JSON meta (dans le bon dossier)
-      const metaPath = path.join(folder, 'registry-meta.json');
-      const meta = {
-        description: '',
-        version: '',
-      };
-      try {
-        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
-        this.log(`✅ Fichier registry-meta.json généré dans ${metaPath}`);
-      } catch (error) {
-        this.log(`❌ Erreur lors de la création du fichier meta: ${error instanceof Error ? error.message : String(error)}`);
-        return;
-      }
-
+      this.createRegistryMetaJson(folder)
       this.log('📝 Remplis les champs "description" et "version" avant de déployer !');
-
     } catch (error) {
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
+
+  private getTargetFolder(type: 'component' | 'class', name: string): string {
+    if (type === 'component') {
+      return this.createLwcComponent(name);
+    }
+    return this.createApexClass(name);
+  }
+
+
   private createLwcComponent(name: string): string {
     const projectRoot = findProjectRoot(process.cwd());
-    const lwcParent = path.join(projectRoot,'force-app', 'main', 'default', 'lwc');
+    const lwcParent = path.join(projectRoot, 'force-app', 'main', 'default', 'lwc');
     const folder = path.join(lwcParent, name);
 
     try {
@@ -70,7 +44,9 @@ export default class RegistryTemplate extends SfCommand<void> {
         cwd: lwcParent,
       });
     } catch (error) {
-      throw new Error(`Erreur lors de la création du composant LWC : ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Erreur lors de la création du composant LWC : ${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
     // Renomme le .js en .ts si besoin
@@ -90,9 +66,10 @@ export default class RegistryTemplate extends SfCommand<void> {
     return folder;
   }
 
+
   private createApexClass(name: string): string {
     const projectRoot = findProjectRoot(process.cwd());
-    const classesParent = path.join(projectRoot,'force-app', 'main', 'default', 'classes');
+    const classesParent = path.join(projectRoot, 'force-app', 'main', 'default', 'classes');
     const folder = path.join(classesParent, name);
 
     try {
@@ -103,7 +80,9 @@ export default class RegistryTemplate extends SfCommand<void> {
         cwd: classesParent,
       });
     } catch (error) {
-      throw new Error(`Erreur lors de la création de la classe Apex : ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Erreur lors de la création de la classe Apex : ${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
     // Crée le sous-dossier si besoin
@@ -128,16 +107,27 @@ export default class RegistryTemplate extends SfCommand<void> {
         fs.renameSync(metaXmlPath, destMeta);
       }
     } catch (error) {
-      this.log(`❌ Erreur lors du déplacement des fichiers de la classe Apex : ${error instanceof Error ? error.message : String(error)}`);
+      this.log(
+        `❌ Erreur lors du déplacement des fichiers de la classe Apex : ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
 
     return folder;
   }
-  
-  private getTargetFolder(type: 'component' | 'class', name: string): string {
-    if (type === 'component') {
-      return this.createLwcComponent(name);
+
+
+  private createRegistryMetaJson(folder: string): void {
+    const metaPath = path.join(folder, 'registry-meta.json');
+    const meta = { description: '', version: '' };
+    try {
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+      this.log(`✅ Fichier registry-meta.json généré dans ${metaPath}`);
+    } catch (error) {
+      this.error(
+        `❌ Erreur lors de la création du fichier meta: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
-    return this.createApexClass(name);
-  }
+  }  
 }

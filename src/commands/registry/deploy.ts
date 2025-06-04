@@ -45,6 +45,7 @@ type RegistryDep = Readonly<{
 }>;
 
 export default class RegistryDeploy extends SfCommand<void> {
+  // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
   public static readonly summary = 'Déploie un composant LWC ou une classe Apex (et ses dépendances récursives) sur le registre externe';
   public static readonly examples = ['$ sf registry deploy'];
 

@@ -1,29 +1,18 @@
 import fetch from 'node-fetch';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { fetchCatalog } from '../../utils/registry';
+import { fetchCatalog, promptComponentOrClass, promptSelectName } from '../../utils/functions.js';
+import { SERVER_URL } from '../../utils/constants.js';
 
 export default class RegistryDelete extends SfCommand<void> {
+  // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
   public static readonly summary = 'Supprime un composant ou une classe du registre';
   public static readonly examples = ['$ sf registry delete'];
 
   public async run(): Promise<void> {
-    const server = 'https://registry.kiliogene.com';
+    const type = await promptComponentOrClass('Quel type d\'élément veux-tu supprimer ?')
 
-    // 1. Choix du type
-    const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
-      {
-        name: 'type',
-        type: 'list',
-        message: 'Supprimer un composant ou une classe ?',
-        choices: [
-          { name: 'Composant LWC', value: 'component' },
-          { name: 'Classe Apex', value: 'class' },
-        ],
-      },
-    ]);
-
-    const resultFetchCatalog = await fetchCatalog(server);
+    const resultFetchCatalog = await fetchCatalog(SERVER_URL);
     if (!resultFetchCatalog.ok) {
       this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
     }
@@ -37,14 +26,7 @@ export default class RegistryDelete extends SfCommand<void> {
       return;
     }
 
-    const { name } = await inquirer.prompt<{ name: string }>([
-      {
-        name: 'name',
-        type: 'list',
-        message: `Quel ${label} veux-tu supprimer ?`,
-        choices: items.map((element) => element.name),
-      },
-    ]);
+    const name = await promptSelectName(`Quel ${label} veux-tu supprimer ?`, items.map(e => e.name));
 
     // 3. Choix de la version ou toutes les versions
     const selectedEntry = items.find((element) => element.name === name);
@@ -88,7 +70,7 @@ export default class RegistryDelete extends SfCommand<void> {
     }
 
     // 5. Appel API
-    let url = `${server}/delete/${type}/${name}`;
+    let url = `${SERVER_URL}/delete/${type}/${name}`;
     if (version) url += `/${version}`;
     const delRes = await fetch(url, { method: 'DELETE' });
     const result = (await delRes.json()) as { error?: string; message?: string };

@@ -1,28 +1,17 @@
-import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import kleur from 'kleur';
-import { fetchCatalog } from '../../utils/registry';
+import { fetchCatalog, promptComponentOrClass } from '../../utils/functions.js';
+import { SERVER_URL } from '../../utils/constants.js';
 
 export default class RegistryList extends SfCommand<void> {
+  // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
   public static readonly summary = 'Affiche la liste des composants ou classes du registre';
   public static readonly examples = ['$ sf registry list'];
 
   public async run(): Promise<void> {
-    const server = 'https://registry.kiliogene.com';
+    const type = await promptComponentOrClass('Que veux-tu afficher ?'); 
 
-    const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
-      {
-        name: 'type',
-        type: 'list',
-        message: 'Que veux-tu afficher ?',
-        choices: [
-          { name: 'Composants LWC', value: 'component' },
-          { name: 'Classes Apex', value: 'class' },
-        ],
-      },
-    ]);
-
-    const resultFetchCatalog = await fetchCatalog(server);
+    const resultFetchCatalog = await fetchCatalog(SERVER_URL);
     if (!resultFetchCatalog.ok) {
       this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
     }
