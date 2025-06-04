@@ -1,12 +1,12 @@
-import { Registry } from './types.js';
-export declare function promptComponentOrClass(message: string): Promise<'component' | 'class'>;
-export declare function promptSelectName(message: string, names: string[]): Promise<string>;
-export declare function promptValidName(message: string): Promise<string>;
+import type { ComponentOrClassEntry, Registry } from './types.js';
 export declare function findProjectRoot(currentDir: string): string;
-export declare function fetchCatalog(server: string): Promise<{
-    ok: true;
-    data: Registry;
-} | {
-    ok: false;
-    error: string;
-}>;
+export declare function fetchCatalog(this: {
+    error: (msg: string) => never;
+}, server: string): Promise<Registry>;
+export declare function getCleanTypeLabel(type: 'component' | 'class', plural?: boolean): string;
+export declare function getNonEmptyItemsOrError(this: {
+    error: (msg: string) => never;
+}, catalog: Registry, type: 'component' | 'class', label: string, action: string): ComponentOrClassEntry[];
+export declare function findEntryOrError(this: {
+    error: (msg: string) => never;
+}, items: ComponentOrClassEntry[], name: string): ComponentOrClassEntry;

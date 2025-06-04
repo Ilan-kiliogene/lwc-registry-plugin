@@ -1,8 +1,9 @@
-import fetch from 'node-fetch';
-import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { fetchCatalog, promptComponentOrClass, promptSelectName } from '../../utils/functions.js';
 import { SERVER_URL } from '../../utils/constants.js';
+import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError, findEntryOrError } from '../../utils/functions.js';
+import { promptComponentOrClass, promptSelectName, promptVersionToDelete, promptDeleteConfirmation } from '../../utils/prompts.js';
+
+
 
 export default class RegistryDelete extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
@@ -10,71 +11,31 @@ export default class RegistryDelete extends SfCommand<void> {
   public static readonly examples = ['$ sf registry delete'];
 
   public async run(): Promise<void> {
-    const type = await promptComponentOrClass('Quel type d\'élément veux-tu supprimer ?')
-
-    const resultFetchCatalog = await fetchCatalog(SERVER_URL);
-    if (!resultFetchCatalog.ok) {
-      this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
+    try{
+      const type = await promptComponentOrClass('Quel type d\'élément veux-tu supprimer ?')
+      const catalog = await fetchCatalog.call(this,SERVER_URL);
+      const cleanType = getCleanTypeLabel(type) 
+      const items = getNonEmptyItemsOrError.call(this,catalog,type,cleanType,'à supprimer')
+      const name = await promptSelectName(`Quel ${cleanType} veux-tu supprimer ?`, items.map(e => e.name));
+      const selectedEntry = findEntryOrError.call(this,items,name)
+      const version = await promptVersionToDelete.call(this,selectedEntry.versions);
+      const ok = await promptDeleteConfirmation({ type, name, version });
+      if (!ok) return;
+      await this.deleteFromRegistry(SERVER_URL,type,name,version)
+    } catch (error) {
+      this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const catalog = resultFetchCatalog.data;
-
-    const label = type === 'component' ? 'Composants LWC' : 'Classes Apex';
-
-    const items = catalog[type];
-    if (!items.length) {
-      this.log(`Aucun ${label} à supprimer.`);
-      return;
-    }
-
-    const name = await promptSelectName(`Quel ${label} veux-tu supprimer ?`, items.map(e => e.name));
-
-    // 3. Choix de la version ou toutes les versions
-    const selectedEntry = items.find((element) => element.name === name);
-    if (!selectedEntry) {
-      this.error('Élément introuvable.');
-    }
-
-    let version: string | null = null;
-    if (selectedEntry.versions.length > 1) {
-      const { which } = await inquirer.prompt<{ which: string }>([
-        {
-          name: 'which',
-          type: 'list',
-          message: 'Supprimer une version spécifique ou toutes ?',
-          choices: [
-            ...selectedEntry.versions.map((versions) => ({
-              name: `v${versions.version} - ${versions.description}`,
-              value: versions.version,
-            })),
-            { name: 'Toutes les versions', value: 'ALL' },
-          ],
-        },
-      ]);
-      version = which !== 'ALL' ? which : null;
-    }
-
-    // 4. Confirmation
-    const confirmMsg = version
-      ? `Supprimer ${type} "${name}" version ${version} ?`
-      : `Supprimer TOUTES les versions de ${type} "${name}" ?`;
-    const { ok } = await inquirer.prompt<{ ok: boolean }>([
-      {
-        name: 'ok',
-        type: 'confirm',
-        message: confirmMsg,
-      },
-    ]);
-    if (!ok) {
-      this.log('Suppression annulée.');
-      return;
-    }
-
-    // 5. Appel API
-    let url = `${SERVER_URL}/delete/${type}/${name}`;
+  }
+  private async deleteFromRegistry(
+    serverUrl: string,
+    type: string,
+    name: string,
+    version?: string | null,
+  ): Promise<void> {
+    let url = `${serverUrl}/delete/${type}/${name}`;
     if (version) url += `/${version}`;
     const delRes = await fetch(url, { method: 'DELETE' });
     const result = (await delRes.json()) as { error?: string; message?: string };
-
     if (!delRes.ok) {
       this.error(result.error ?? 'Erreur lors de la suppression.');
     } else {

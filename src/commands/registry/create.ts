@@ -2,7 +2,8 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { findProjectRoot, promptComponentOrClass, promptValidName } from '../../utils/functions.js';
+import { findProjectRoot, getCleanTypeLabel } from '../../utils/functions.js';
+import { promptComponentOrClass, promptValidNameCommandCreate } from '../../utils/prompts.js';
 
 export default class RegistryTemplate extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
@@ -12,8 +13,8 @@ export default class RegistryTemplate extends SfCommand<void> {
   public async run(): Promise<void> {
     try {
       const type = await promptComponentOrClass('Quel type de template veux-tu créer ?');    
-      const cleanType = type === 'component' ? 'Composant LWC' : 'Classe Apex';
-      const name = await promptValidName(`Nom du ${cleanType}`)
+      const cleanType = getCleanTypeLabel(type, false) 
+      const name = await promptValidNameCommandCreate(`Nom du ${cleanType}`)
       const folder = this.getTargetFolder(type, name);
       this.createRegistryMetaJson(folder)
       this.log('📝 Remplis les champs "description" et "version" avant de déployer !');

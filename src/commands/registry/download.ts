@@ -9,45 +9,24 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 import * as fsExtra from 'fs-extra';
 import { Registry } from '../../utils/types.js';
 import { SERVER_URL } from '../../utils/constants.js';
-import { fetchCatalog, promptComponentOrClass, promptSelectName } from '../../utils/functions.js';
+import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError, findEntryOrError } from '../../utils/functions.js';
+import { promptComponentOrClass, promptSelectName, promptSelectVersion } from '../../utils/prompts.js';
+
 
 export default class RegistryDownload extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
-  public static readonly summary =
-    'Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
+  public static readonly summary ='Télécharge un composant LWC ou une classe Apex depuis un registre externe (avec menu interactif).';
   public static readonly examples = ['$ sf registry download'];
 
   public async run(): Promise<void> {
     const type = await promptComponentOrClass('Que veux-tu télécharger ?');
+    const catalog = await fetchCatalog.call(this,SERVER_URL);
+    const cleanType = getCleanTypeLabel(type,false ) 
+    const entries = getNonEmptyItemsOrError.call(this,catalog,type,cleanType,'à télécharger')
+    const name = await promptSelectName(`Quel ${cleanType} veux-tu télécharger ?`, entries.map(e => e.name));
+    const entry = findEntryOrError.call(this,entries,name)
+    const version = await promptSelectVersion(entry, name);
 
-    const resultFetchCatalog = await fetchCatalog(SERVER_URL);
-    if (!resultFetchCatalog.ok) {
-      this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
-    }
-    const catalog = resultFetchCatalog.data;
-
-    // 3. Sélection de l’élément à télécharger
-    const entries = catalog[type];
-    const label = type === 'component' ? 'Composant LWC' : 'Classe Apex';
-
-    if (!entries.length) this.error(`❌ Aucun ${label} disponible dans le registre.`);
-
-    const name = await promptSelectName(`Quel ${label} veux-tu télécharger ?`, entries.map(e => e.name));
-
-
-    // 4. Sélection de la version
-    const entry = entries.find((element) => element.name === name);
-    if (!entry) this.error(`❌ ${label} "${name}" non trouvé dans le registre.`);
-    const versions = entry.versions.map((v) => v.version).reverse();
-
-    const { version } = await inquirer.prompt<{ version: string }>([
-      {
-        name: 'version',
-        type: 'list',
-        message: `Quelle version de ${name} ?`,
-        choices: versions,
-      },
-    ]);
 
     // 5. Sélection du dossier de destination
     const { choice } = await inquirer.prompt<{ choice: string }>([

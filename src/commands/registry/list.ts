@@ -1,7 +1,9 @@
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import kleur from 'kleur';
-import { fetchCatalog, promptComponentOrClass } from '../../utils/functions.js';
+import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError } from '../../utils/functions.js';
+import { promptComponentOrClass } from '../../utils/prompts.js';
 import { SERVER_URL } from '../../utils/constants.js';
+import { ComponentOrClassEntry } from '../../utils/types.js';
 
 export default class RegistryList extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
@@ -9,40 +11,49 @@ export default class RegistryList extends SfCommand<void> {
   public static readonly examples = ['$ sf registry list'];
 
   public async run(): Promise<void> {
-    const type = await promptComponentOrClass('Que veux-tu afficher ?'); 
-
-    const resultFetchCatalog = await fetchCatalog(SERVER_URL);
-    if (!resultFetchCatalog.ok) {
-      this.error(`Erreur lors de la récupération du catalogue : ${resultFetchCatalog.error}`);
+    try {
+      const type = await promptComponentOrClass('Que veux-tu afficher ?'); 
+      const catalog = await fetchCatalog.call(this,SERVER_URL);
+      const cleanType = getCleanTypeLabel(type) 
+      const items = getNonEmptyItemsOrError.call(this,catalog,type,cleanType,'à afficher')
+      this.logRegistryItems(items, type, cleanType);  
+    } catch (error) {
+      this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const catalog = resultFetchCatalog.data;
+  }
 
-    const label = type === 'component' ? 'Composants LWC' : 'Classes Apex';
-    const items = catalog[type];
-    if (!items.length) {
-      this.log(kleur.red(`Aucun ${label} trouvé.`));
-      return;
-    }
 
-    this.log('\n' + kleur.bold().underline(`${label} disponibles (${items.length})`) + '\n');
-
-    for (const entry of items) {
-      this.log(kleur.cyan().bold(`- ${entry.name}`));
-      if (!entry.versions.length) continue;
-      // Affiche un "header"
-      this.log(
-        `   ${kleur.bold('Version').padEnd(12)}${kleur.bold('Description').padEnd(40)}${
-          type === 'component' ? kleur.bold('StaticResources') : ''
-        }`
-      );
-      for (const v of entry.versions) {
-        let line = `   ${kleur.green(`v${v.version}`).padEnd(12)}` + `${v.description.padEnd(40)}`;
-        if (type === 'component' && v.staticresources?.length) {
-          line += kleur.magenta(v.staticresources.join(', '));
-        }
-        this.log(line);
-      }
-      this.log(''); // Ligne vide pour séparer les entrées
-    }
+  private logRegistryItems(
+    items: ComponentOrClassEntry[],
+    type: 'component' | 'class',
+    label: string 
+  ): void {
+    const header = `\n${kleur.bold().underline(`${label} disponibles (${items.length})`)}\n`;
+  
+    const blocks = items.map(entry => {
+      let block = kleur.cyan().bold(`- ${entry.name}`) + '\n';
+  
+      if (!entry.versions.length) return block;
+  
+      block +=
+        `   ${kleur.bold('Version').padEnd(12)}${kleur.bold('Description').padEnd(40)}` +
+        (type === 'component' ? kleur.bold('StaticResources') : '') +
+        '\n';
+  
+      block += entry.versions
+        .map(v => {
+          let line = `   ${kleur.green(`v${v.version}`).padEnd(12)}${v.description.padEnd(40)}`;
+          if (type === 'component' && v.staticresources?.length) {
+            line += kleur.magenta(v.staticresources.join(', '));
+          }
+          return line;
+        })
+        .join('\n');
+  
+      block += '\n'; // Saut de ligne après chaque bloc d’entrée
+      return block;
+    });
+  
+    this.log(header + blocks.join('\n'));
   }
 }

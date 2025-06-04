@@ -1,58 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import inquirer from 'inquirer';
-import { Registry, registrySchema } from './types.js';
-
-
-// =======================================================================
-//  PROMPT POUR CHOISIR LE TYPE D'ENTRÉE (COMPOSANT OU CLASSE)
-// =======================================================================
-export async function promptComponentOrClass(message: string): Promise<'component' | 'class'> {
-  const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
-    {
-      name: 'type',
-      type: 'list',
-      message, 
-      choices: [
-        { name: 'Composant LWC', value: 'component' },
-        { name: 'Classe Apex', value: 'class' },
-      ],
-    },
-  ]);
-  return type;
-}
-
-
-// ===============================================
-//  PROMPT POUR CHOISIR UN COMPOSANT OU UNE CLASSE
-// ===============================================
-export async function promptSelectName(message: string, names: string[]): Promise<string> {
-  const { name } = await inquirer.prompt<{ name: string }>([
-    {
-      name: 'name',
-      type: 'list',
-      message,
-      choices: names,
-    },
-  ]);
-  return name;
-}
-
-
-// ==================================
-//  PROMPT POUR ÉCRIRE UN NOM VALIDE
-// ==================================
-export async function promptValidName(message: string): Promise<string> {
-  const { name } = await inquirer.prompt<{ name: string }>([
-    {
-      name: 'name',
-      type: 'input',
-      message,
-      validate: (v) => /^[a-zA-Z0-9_]+$/.test(v) || 'Nom invalide (alphanumérique uniquement)',
-    },
-  ]);
-  return name;
-}
+import type { ComponentOrClassEntry,  Registry} from './types.js';
+import { registrySchema } from './types.js';
 
 // ===============================================
 //  UTILITAIRE : Trouve la racine d’un projet SFDX
@@ -73,28 +22,66 @@ export function findProjectRoot(currentDir: string): string {
 // =====================================================
 //  UTILITAIRE : Récupère et valide le catalogue distant
 // =====================================================
-export async function fetchCatalog(server: string): Promise<
-  { ok: true; data: Registry } | { ok: false; error: string }
-> {
+export async function fetchCatalog(
+  this: { error: (msg: string) => never},
+  server: string
+): Promise<Registry> {
   try {
     const res = await fetch(`${server}/catalog`);
-    if (!res.ok) {
-      return { ok: false, error: `Erreur ${res.status} lors de la récupération du registre` };
-    }
+    if (!res.ok) this.error(`Erreur ${res.status} lors de la récupération du registre`);
     const json = await res.json();
 
     const result = registrySchema.safeParse(json);
     if (!result.success) {
-      return {
-        ok: false,
-        error: 'Format du registre invalide : ' + result.error.issues.map(i => i.message).join('; ')
-      };
+      this.error(
+        'Format du registre invalide : ' +
+        result.error.issues.map(i => i.message).join('; ')
+      );
     }
-    return { ok: true, data: result.data };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err)
-    };
+    return result.data; 
+  } catch (error) {
+    this.error(error instanceof Error ? error.message : String(error));
   }
+}
+
+// =====================================================
+//  UTILITAIRE : Récupère et affiche proprement le type
+// =====================================================
+export function getCleanTypeLabel(type: 'component' | 'class', plural = true): string {
+  if (type === 'component') return plural ? 'Composants LWC' : 'composant LWC';
+  return plural ? 'Classes Apex' : 'classe Apex';
+}
+
+
+// ===========================================================
+//  UTILITAIRE : Récupère la partie du catalog voulue non vide
+// ===========================================================
+export function getNonEmptyItemsOrError(
+  this: { error: (msg: string) => never },
+  catalog: Registry,
+  type: 'component' | 'class',
+  label: string,
+  action: string
+): ComponentOrClassEntry[] {
+  const items = catalog[type];
+  if (!items.length) {
+    this.error(`Aucun ${label} ${action}.`);
+  }
+  return items;
+}
+
+
+// ======================================================
+//  UTILITAIRE : Trouve une entrée dans le catalog valide
+// ======================================================
+export function findEntryOrError(
+  this: { error: (msg: string) => never },
+  items: ComponentOrClassEntry[],
+  name: string
+): ComponentOrClassEntry {
+  const selectedEntry = items.find((element) => element.name === name);
+  if (!selectedEntry) {
+    this.error(`Élément "${name}" introuvable.`);
+  }
+  return selectedEntry;
 }
