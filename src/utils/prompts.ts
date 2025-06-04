@@ -1,5 +1,7 @@
+import path from 'node:path';
 import inquirer from 'inquirer';
 import type { ComponentOrClassEntry, ComponentOrClassVersion } from './types';
+import { findProjectRoot } from './functions';
 
 
 // =======================================================================
@@ -146,10 +148,13 @@ export async function promptTargetDirectory(): Promise<string> {
         name: 'target',
         type: 'input',
         message: 'Tape un chemin :',
+        validate: (input: string) =>
+          input && input.trim().length > 0 ? true : 'Le chemin ne peut pas être vide.',
       },
     ]);
-    return target;
+    return target.trim();
   }
-
-  return choice;
+  const projectRoot = findProjectRoot(process.cwd());
+  const finalDir = path.join(projectRoot,choice);
+  return finalDir;
 }

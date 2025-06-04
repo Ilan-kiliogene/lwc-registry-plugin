@@ -4,13 +4,12 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
-import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import * as fsExtra from 'fs-extra';
 import { Registry } from '../../utils/types.js';
 import { SERVER_URL } from '../../utils/constants.js';
 import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError, findEntryOrError } from '../../utils/functions.js';
-import { promptComponentOrClass, promptSelectName, promptSelectVersion } from '../../utils/prompts.js';
+import { promptComponentOrClass, promptSelectName, promptSelectVersion, promptTargetDirectory } from '../../utils/prompts.js';
 
 
 export default class RegistryDownload extends SfCommand<void> {
@@ -19,42 +18,18 @@ export default class RegistryDownload extends SfCommand<void> {
   public static readonly examples = ['$ sf registry download'];
 
   public async run(): Promise<void> {
+    try {
     const type = await promptComponentOrClass('Que veux-tu télécharger ?');
     const catalog = await fetchCatalog.call(this,SERVER_URL);
-    const cleanType = getCleanTypeLabel(type,false ) 
-    const entries = getNonEmptyItemsOrError.call(this,catalog,type,cleanType,'à télécharger')
+    const cleanType = getCleanTypeLabel(type,false );
+    const entries = getNonEmptyItemsOrError.call(this,catalog,type,cleanType,'à télécharger');
     const name = await promptSelectName(`Quel ${cleanType} veux-tu télécharger ?`, entries.map(e => e.name));
-    const entry = findEntryOrError.call(this,entries,name)
+    const entry = findEntryOrError.call(this,entries,name);
     const version = await promptSelectVersion(entry, name);
-
-
-    // 5. Sélection du dossier de destination
-    const { choice } = await inquirer.prompt<{ choice: string }>([
-      {
-        name: 'choice',
-        type: 'list',
-        message: 'Dossier cible ? (les composants LWC iront dans lwc, les classes dans classes)',
-        choices: ['force-app/main/default/', 'Autre...'],
-      },
-    ]);
-
-    let customTarget: string | null = null;
-    if (choice === 'Autre...') {
-      const { target } = await inquirer.prompt<{ target: string }>([
-        {
-          name: 'target',
-          type: 'input',
-          message: 'Tape un chemin :',
-        },
-      ]);
-      customTarget = target;
-    }
-
-    // 6. Téléchargement et extraction
-    try {
-      await this.downloadAndExtract(SERVER_URL, type, name, version, catalog, customTarget);
+    const targetDirectory = await promptTargetDirectory();
+    await this.downloadAndExtract(SERVER_URL, type, name, version, catalog, targetDirectory);
     } catch (error) {
-      this.error(error instanceof Error ? error.message : String(error));
+      this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -64,7 +39,7 @@ export default class RegistryDownload extends SfCommand<void> {
     name: string,
     version: string,
     registry: Registry,
-    customTarget: string | null
+    targetDirectory: string 
   ): Promise<void> {
     const url = `${server}/download/${type}/${name}/${version}`;
     const zipPath = path.join(os.tmpdir(), `${name}-${version}-${randomUUID()}.zip`);
@@ -82,7 +57,7 @@ export default class RegistryDownload extends SfCommand<void> {
       zip.extractAllTo(tmpExtractPath, true);
 
       // Extraction et déplacement factorisé
-      await this.handleExtraction(tmpExtractPath, registry, customTarget);
+      await this.handleExtraction(tmpExtractPath, registry, targetDirectory);
 
       this.log('✅ Tous les items ont été extraits au bon endroit !');
     } finally {
