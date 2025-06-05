@@ -8,7 +8,7 @@ import { SfCommand } from '@salesforce/sf-plugins-core';
 import fsExtra from 'fs-extra';
 import { Registry } from '../../utils/types.js';
 import { SERVER_URL } from '../../utils/constants.js';
-import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError, findEntryOrError, safeRemove } from '../../utils/functions.js';
+import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError, findEntryOrError, safeRemove, getDestination } from '../../utils/functions.js';
 import { promptComponentOrClass, promptSelectName, promptSelectVersion, promptTargetDirectory } from '../../utils/prompts.js';
 
 
@@ -159,9 +159,3 @@ export default class RegistryDownload extends SfCommand<void> {
   }
 }
 
-function getDestination(targetDir: string, itemType: 'component' | 'class', itemName: string): string {
-  if (itemType==='component'){
-    return path.join(targetDir,'lwc',itemName)
-  }
-  return path.join(targetDir,'classes',itemName)
-}

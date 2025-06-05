@@ -6,11 +6,16 @@ import { z } from 'zod';
 
 const rawConfig = {
   SERVER_URL: 'https://registry.kiliogene.com',
+  FORBIDDEN_EXTENSIONS: [
+    '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.exe', '.scr', '.vbs',
+    '.msi', '.php', '.py', '.pl', '.rb', '.jar', '.com', '.wsf',
+  ],
   // ...autres configs ici si besoin
 };
 
 const configSchema = z.object({
   SERVER_URL: z.string().url(),
+  FORBIDDEN_EXTENSIONS: z.array(z.string().startsWith('.')).nonempty(),
   // autres variables si besoin...
 });
 
@@ -23,3 +28,4 @@ if (!parsed.success) {
 }
 
 export const SERVER_URL = parsed.data.SERVER_URL;
+export const FORBIDDEN_EXTENSIONS = parsed.data.FORBIDDEN_EXTENSIONS;

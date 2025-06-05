@@ -102,3 +102,14 @@ export async function safeRemove(
     this.error(`⚠️ Impossible de supprimer ${fileOrDir}: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
+
+
+// =================================================
+//  UTILITAIRE : Renvoie le bon chemin selon le type
+// =================================================
+export function getDestination(targetDir: string, itemType: 'component' | 'class', itemName: string): string {
+  if (itemType==='component'){
+    return path.join(targetDir,'lwc',itemName)
+  }
+  return path.join(targetDir,'classes',itemName)
+}

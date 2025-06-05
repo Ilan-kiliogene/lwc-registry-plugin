@@ -1,36 +1,18 @@
 import fs from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import AdmZip from 'adm-zip';
 import fetch from 'node-fetch';
 import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import FormData from 'form-data';
+import { SERVER_URL, FORBIDDEN_EXTENSIONS } from '../../utils/constants';
+import { promptComponentOrClass } from '../../utils/prompts';
+import { findProjectRoot } from '../../utils/functions';
 
-const FORBIDDEN_EXTENSIONS = [
-  '.sh',
-  '.bash',
-  '.zsh',
-  '.bat',
-  '.cmd',
-  '.ps1',
-  '.exe',
-  '.scr',
-  '.vbs',
-  '.msi',
-  '.php',
-  '.py',
-  '.pl',
-  '.rb',
-  '.jar',
-  '.com',
-  '.wsf',
-];
 
 const STATICRES_DIR = 'force-app/main/default/staticresources';
-
-type DeployType = 'component' | 'class';
 
 type MetadataBase = { description: string };
 
@@ -50,25 +32,13 @@ export default class RegistryDeploy extends SfCommand<void> {
   public static readonly examples = ['$ sf registry deploy'];
 
   public async run(): Promise<void> {
-    const server = 'https://registry.kiliogene.com';
+    const type = await promptComponentOrClass('Que voulez vous déployer ?')
+    const projectRoot = findProjectRoot(process.cwd());
+    const basePathLwc = path.join(projectRoot,'force-app/main/default/lwc');
+    const basePathApex = path.join(projectRoot,'force-app/main/default/classes');
 
-    // 1. Sélection du type à déployer
-    const { type } = await inquirer.prompt<{ type: DeployType }>([
-      {
-        name: 'type',
-        type: 'list',
-        message: 'Que veux-tu déployer ?',
-        choices: ['component', 'class'],
-      },
-    ]);
-
-    const basePathLwc = 'force-app/main/default/lwc';
-    const basePathApex = 'force-app/main/default/classes';
-
-    // 2. Listing des composants/classes disponibles
     const allComponents = safeListDirNames(basePathLwc);
 
-    // On crée la vraie liste des classes depuis tous les .cls
     const { allClasses, classNameToDir } = findAllClasses(basePathApex);
 
     const items = type === 'component' ? allComponents : allClasses;
@@ -108,7 +78,7 @@ export default class RegistryDeploy extends SfCommand<void> {
     const metadata = answers as MetadataBase;
 
     const zip = new AdmZip();
-    const tmpDir = '/tmp';
+    const tmpDir = os.tmpdir();
     await mkdir(tmpDir, { recursive: true });
 
     // 5. Dépendances récursives + ajout des fichiers au ZIP
@@ -247,10 +217,10 @@ export default class RegistryDeploy extends SfCommand<void> {
     form.append('type', type);
     form.append('version', version);
 
-    this.log(`📤 Envoi de ${name} (${type}) vers ${server}/deploy...`);
+    this.log(`📤 Envoi de ${name} (${type}) vers ${SERVER_URL}/deploy...`);
 
     try {
-      const res = await fetch(`${server}/deploy`, {
+      const res = await fetch(`${SERVER_URL}/deploy`, {
         method: 'POST',
         body: form,
         headers: form.getHeaders(),
@@ -273,7 +243,7 @@ export default class RegistryDeploy extends SfCommand<void> {
 
 // ===== Utilitaires robustes et typés =====
 
-// Liste tous les dossiers immédiats (sécurité et compatibilité cross-OS)
+// Liste tous les dossiers immédiats 
 function safeListDirNames(base: string): string[] {
   try {
     return fs
@@ -293,7 +263,8 @@ function findAllClasses(basePathApex: string): { allClasses: string[]; className
   const allClasses: string[] = [];
   const classNameToDir: Record<string, string> = {};
   try {
-    const classDirs = fs.readdirSync(basePathApex, { withFileTypes: true }).filter((e) => e.isDirectory());
+    const classDirs = fs.readdirSync(basePathApex, { withFileTypes: true })
+    .filter((e) => e.isDirectory());
     for (const dir of classDirs) {
       const dirPath = path.join(basePathApex, dir.name);
       for (const file of fs.readdirSync(dirPath)) {
