@@ -13,3 +13,4 @@ export declare function findEntryOrError(this: {
 export declare function safeRemove(this: {
     error: (msg: string) => never;
 }, fileOrDir: string): Promise<void>;
+export declare function getDestination(targetDir: string, itemType: 'component' | 'class', itemName: string): string;

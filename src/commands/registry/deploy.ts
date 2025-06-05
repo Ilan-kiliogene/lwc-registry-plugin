@@ -1,20 +1,14 @@
 import fs from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
-import AdmZip from 'adm-zip';
+import archiver from 'archiver';
 import fetch from 'node-fetch';
-import inquirer from 'inquirer';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import FormData from 'form-data';
-import { SERVER_URL, FORBIDDEN_EXTENSIONS } from '../../utils/constants';
-import { promptComponentOrClass } from '../../utils/prompts';
-import { findProjectRoot } from '../../utils/functions';
-
+import { SERVER_URL, FORBIDDEN_EXTENSIONS } from '../../utils/constants.js';
+import { promptComponentOrClass, promptSelectName, promptVersionToEnter, promptDescriptionToEnter } from '../../utils/prompts.js';
+import { findProjectRoot, getCleanTypeLabel } from '../../utils/functions.js';
 
 const STATICRES_DIR = 'force-app/main/default/staticresources';
-
-type MetadataBase = { description: string };
 
 type ItemType = 'component' | 'class';
 
@@ -28,90 +22,94 @@ type RegistryDep = Readonly<{
 
 export default class RegistryDeploy extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
-  public static readonly summary = 'Déploie un composant LWC ou une classe Apex (et ses dépendances récursives) sur le registre externe';
+  public static readonly summary ='Déploie un composant LWC ou une classe Apex (et ses dépendances récursives) sur le registre externe';
   public static readonly examples = ['$ sf registry deploy'];
 
   public async run(): Promise<void> {
-    const type = await promptComponentOrClass('Que voulez vous déployer ?')
+    const type = await promptComponentOrClass('Que voulez vous déployer ?');
     const projectRoot = findProjectRoot(process.cwd());
-    const basePathLwc = path.join(projectRoot,'force-app/main/default/lwc');
-    const basePathApex = path.join(projectRoot,'force-app/main/default/classes');
-
+    const basePathLwc = path.join(projectRoot, 'force-app/main/default/lwc');
+    const basePathApex = path.join(projectRoot, 'force-app/main/default/classes');
+    const cleanType = getCleanTypeLabel(type, false);
     const allComponents = safeListDirNames(basePathLwc);
 
     const { allClasses, classNameToDir } = findAllClasses(basePathApex);
 
     const items = type === 'component' ? allComponents : allClasses;
     if (items.length === 0) {
-      this.error(`❌ Aucun ${type} trouvé dans ${type === 'component' ? basePathLwc : basePathApex}`);
+      this.error(
+        `❌ Aucun ${type} trouvé dans ${
+          type === 'component' ? basePathLwc : basePathApex
+        }`
+      );
     }
 
-    // 3. Sélection de l’item à déployer
-    const { name } = await inquirer.prompt<{ name: string }>([
-      {
-        name: 'name',
-        type: 'list',
-        message: `Quel ${type} veux-tu déployer ?`,
-        choices: items,
-      },
-    ]);
+    const name = await promptSelectName(`Quel ${cleanType} voulez-vous déployer ?`,items);
+    const version = await promptVersionToEnter();
+    const description = await promptDescriptionToEnter();
+    
 
-    // *** DEMANDER LA VERSION ***
-    const { version } = await inquirer.prompt<{ version: string }>([
-      {
-        name: 'version',
-        type: 'input',
-        message: 'Numéro de version à déployer ? (ex: 1.0.0)',
-        validate: (input) => /^\d+\.\d+\.\d+$/.test(input) ? true : 'Format attendu : x.y.z',
-      },
-    ]);
+    
 
-    // 4. Description
-    const answers = await inquirer.prompt([
-      {
-        name: 'description',
-        message: 'Description ?',
-        type: 'input',
-        validate: (input) => input.trim() !== '' || 'La description est requise.',
-      },
-    ]);
-    const metadata = answers as MetadataBase;
 
-    const zip = new AdmZip();
-    const tmpDir = os.tmpdir();
-    await mkdir(tmpDir, { recursive: true });
 
-    // 5. Dépendances récursives + ajout des fichiers au ZIP
+
+
+
+
+
+
+    // Dépendances récursives + ajout des fichiers au ZIP (via archiver)
     const added = new Set<string>();
     const itemsToZip: RegistryDep[] = [];
-
     const staticResourcesUsed = new Set<string>();
 
-    const getItemDependencies = (depName: string, depType: ItemType): Array<{ name: string; type: ItemType }> => {
+    const getItemDependencies = (
+      depName: string,
+      depType: ItemType
+    ): Array<{ name: string; type: ItemType }> => {
       if (depType === 'component') {
         const compDir = path.join(basePathLwc, depName);
-
-        // Collecte aussi les staticresources dans les .ts et .js
         findStaticResourcesUsed(compDir, staticResourcesUsed);
 
-        const htmlDeps = extractHTMLDependencies(path.join(compDir, `${depName}.html`));
-        const tsLwcDeps = extractTsJsLwcDependencies(path.join(compDir, `${depName}.ts`));
-        const jsLwcDeps = extractTsJsLwcDependencies(path.join(compDir, `${depName}.js`));
-        const tsApexDeps = extractTsJsApexDependencies(path.join(compDir, `${depName}.ts`));
-        const jsApexDeps = extractTsJsApexDependencies(path.join(compDir, `${depName}.js`));
+        const htmlDeps = extractHTMLDependencies(
+          path.join(compDir, `${depName}.html`)
+        );
+        const tsLwcDeps = extractTsJsLwcDependencies(
+          path.join(compDir, `${depName}.ts`)
+        );
+        const jsLwcDeps = extractTsJsLwcDependencies(
+          path.join(compDir, `${depName}.js`)
+        );
+        const tsApexDeps = extractTsJsApexDependencies(
+          path.join(compDir, `${depName}.ts`)
+        );
+        const jsApexDeps = extractTsJsApexDependencies(
+          path.join(compDir, `${depName}.js`)
+        );
         const result: Array<{ name: string; type: ItemType }> = [];
-        for (const lwcDep of [...htmlDeps, ...tsLwcDeps, ...jsLwcDeps]) {
-          if (allComponents.includes(lwcDep)) result.push({ name: lwcDep, type: 'component' });
+        for (const lwcDep of [
+          ...htmlDeps,
+          ...tsLwcDeps,
+          ...jsLwcDeps,
+        ]) {
+          if (allComponents.includes(lwcDep))
+            result.push({ name: lwcDep, type: 'component' });
         }
         for (const apexDep of [...tsApexDeps, ...jsApexDeps]) {
-          if (allClasses.includes(apexDep)) result.push({ name: apexDep, type: 'class' });
+          if (allClasses.includes(apexDep))
+            result.push({ name: apexDep, type: 'class' });
         }
         return result;
       } else {
         // classe Apex
         const dir = classNameToDir[depName];
         const mainClsFile = dir ? path.join(dir, `${depName}.cls`) : '';
-        const apexDeps = extractApexDependencies(mainClsFile, allClasses, depName);
+        const apexDeps = extractApexDependencies(
+          mainClsFile,
+          allClasses,
+          depName
+        );
         return apexDeps
           .filter((dep) => allClasses.includes(dep))
           .map((dep) => ({
@@ -121,40 +119,46 @@ export default class RegistryDeploy extends SfCommand<void> {
       }
     };
 
-    const addWithDependencies = (depName: string, depType: ItemType, isRoot = false): void => {
+    const addWithDependencies = (
+      depName: string,
+      depType: ItemType,
+      isRoot = false
+    ): void => {
       const key = `${depType}:${depName}`;
       if (added.has(key)) return;
       added.add(key);
 
-      const dirToAdd = depType === 'component' ? path.join(basePathLwc, depName) : classNameToDir[depName];
+      const dirToAdd =
+        depType === 'component'
+          ? path.join(basePathLwc, depName)
+          : classNameToDir[depName];
 
       // Vérification blacklist avant ajout
       for (const filePath of walkDir(dirToAdd)) {
         if (isForbiddenFile(filePath)) {
-          this.error(`❌ Fichier interdit détecté : ${filePath}. Extension refusée : ${path.extname(filePath)}`);
+          this.error(
+            `❌ Fichier interdit détecté : ${filePath}. Extension refusée : ${path.extname(
+              filePath
+            )}`
+          );
         }
       }
 
-      zip.addLocalFolder(dirToAdd, depName);
-
       const thisDeps = getItemDependencies(depName, depType);
-
-      // --- Ajout du détail pour staticresources ---
-      let staticResources: string[] 
+      let staticResources: string[];
       if (depType === 'component') {
         staticResources = findStaticResourcesUsedForComponent(dirToAdd);
       } else {
-        staticResources = []
+        staticResources = [];
       }
 
-      // *** AJOUT DE LA VERSION UNIQUEMENT SUR L'ITEM RACINE ***
       if (isRoot) {
         itemsToZip.push({
           name: depName,
           type: depType,
           dependencies: thisDeps,
           staticresources: staticResources,
-          version // <-- version saisie par l'utilisateur
+          version,
         });
       } else {
         itemsToZip.push({
@@ -171,53 +175,65 @@ export default class RegistryDeploy extends SfCommand<void> {
     };
 
     addWithDependencies(name, type, true);
-    // --------- STATIC RESOURCES ---------
-    if (staticResourcesUsed.size > 0) {
-      const staticResDest = path.join(tmpDir, 'staticresources');
-      await mkdir(staticResDest, { recursive: true });
-      for (const resName of staticResourcesUsed) {
-        this.log(`resName ${resName}`)
-        // Trouve le fichier principal de la ressource (ex : zip, js, png...)
-        const mainFile = findStaticResourceFile(STATICRES_DIR, resName);
-        if (!mainFile) {
-          this.error(
-            `❌ Ressource statique "${resName}" manquante dans ${STATICRES_DIR}. (Tu dois avoir le fichier principal, pas uniquement le .resource-meta.xml)`
-          );
-        }
-        // Copie le fichier principal
-        fs.copyFileSync(mainFile, path.join(staticResDest, path.basename(mainFile)));
 
-        // Copie le .resource-meta.xml s’il existe
-        const metaFile = path.join(STATICRES_DIR, `${resName}.resource-meta.xml`);
-        if (fs.existsSync(metaFile) && fs.statSync(metaFile).isFile()) {
-          fs.copyFileSync(metaFile, path.join(staticResDest, `${resName}.resource-meta.xml`));
-        }
-      }
-      zip.addLocalFolder(staticResDest, 'staticresources');
-    }
-    // ------------------------------------
+    // =======================
+    //   ZIP et Upload STREAM
+    // =======================
 
-    // 6. Ajoute le JSON des dépendances
-    const depsJsonPath = path.join(tmpDir, `${name}-registry-deps.json`);
-    fs.writeFileSync(depsJsonPath, JSON.stringify(itemsToZip, null, 2));
-    zip.addLocalFile(depsJsonPath, '', 'registry-deps.json');
-
-    // 7. Écriture du ZIP et upload
-    const zipPath = path.join(tmpDir, `${name}-${Date.now()}.zip`);
-    zip.writeZip(zipPath);
-
-    this.log(`📦 ZIP créé : ${zipPath}`);
-    this.log(`📁 Contenu : ${zip.getEntries().length} fichier(s)`);
-
-    // Upload vers serveur
     const form = new FormData();
-    form.append('componentZip', fs.createReadStream(zipPath));
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    // Champs texte
     form.append('name', name);
-    form.append('description', metadata.description);
+    form.append('description', description);
     form.append('type', type);
     form.append('version', version);
 
-    this.log(`📤 Envoi de ${name} (${type}) vers ${SERVER_URL}/deploy...`);
+    // Champ fichier ZIP : flux archiver
+    form.append('componentZip', archive, { filename: `${name}.zip` });
+
+    // Ajout des dossiers (tous les items et leurs dépendances)
+    for (const item of itemsToZip) {
+      const dirToAdd =
+        item.type === 'component'
+          ? path.join(basePathLwc, item.name)
+          : classNameToDir[item.name];
+      archive.directory(dirToAdd, item.name);
+    }
+
+    // Ajout des staticresources EN STREAMING (pas de dossier temporaire)
+    for (const resName of staticResourcesUsed) {
+      const mainFile = findStaticResourceFile(STATICRES_DIR, resName);
+      if (mainFile) {
+        archive.append(fs.createReadStream(mainFile), {
+          name: path.join('staticresources', path.basename(mainFile)),
+        });
+      }
+      const metaFile = path.join(
+        STATICRES_DIR,
+        `${resName}.resource-meta.xml`
+      );
+      if (fs.existsSync(metaFile) && fs.statSync(metaFile).isFile()) {
+        archive.append(fs.createReadStream(metaFile), {
+          name: path.join('staticresources', path.basename(metaFile)),
+        });
+      }
+    }
+
+    // Ajout du JSON des dépendances en mémoire
+    archive.append(JSON.stringify(itemsToZip, null, 2), {
+      name: 'registry-deps.json',
+    });
+
+    try {
+      await archive.finalize();
+    } catch (e) {
+      this.error(`Erreur ZIP : ${(e as Error).message}`);
+    }
+
+    this.log(
+      `📤 Envoi de ${name} (${type}) vers ${SERVER_URL}/deploy (streaming direct)...`
+    );
 
     try {
       const res = await fetch(`${SERVER_URL}/deploy`, {
@@ -231,19 +247,15 @@ export default class RegistryDeploy extends SfCommand<void> {
       }
       this.log(`✅ Serveur : ${resultText}`);
     } catch (err) {
-      this.error(`❌ Erreur réseau : ${(err as Error).message}`);
-    } finally {
-      await rm(zipPath, { force: true });
-      await rm(depsJsonPath, { force: true });
-      const staticResDest = path.join(tmpDir, 'staticresources');
-      await rm(staticResDest, { recursive: true, force: true }).catch(() => {});
+      this.error(
+        `❌ Erreur réseau : ${(err as Error).message}`
+      );
     }
   }
 }
 
 // ===== Utilitaires robustes et typés =====
 
-// Liste tous les dossiers immédiats 
 function safeListDirNames(base: string): string[] {
   try {
     return fs
@@ -255,20 +267,22 @@ function safeListDirNames(base: string): string[] {
   }
 }
 
-/**
- * Recherche tous les noms de classes Apex dans force-app/main/default/classes,
- * peu importe le nom du dossier parent.
- */
-function findAllClasses(basePathApex: string): { allClasses: string[]; classNameToDir: Record<string, string> } {
+function findAllClasses(
+  basePathApex: string
+): { allClasses: string[]; classNameToDir: Record<string, string> } {
   const allClasses: string[] = [];
   const classNameToDir: Record<string, string> = {};
   try {
-    const classDirs = fs.readdirSync(basePathApex, { withFileTypes: true })
-    .filter((e) => e.isDirectory());
+    const classDirs = fs
+      .readdirSync(basePathApex, { withFileTypes: true })
+      .filter((e) => e.isDirectory());
     for (const dir of classDirs) {
       const dirPath = path.join(basePathApex, dir.name);
       for (const file of fs.readdirSync(dirPath)) {
-        if (file.endsWith('.cls') && !file.endsWith('.cls-meta.xml')) {
+        if (
+          file.endsWith('.cls') &&
+          !file.endsWith('.cls-meta.xml')
+        ) {
           const className = file.replace(/\.cls$/, '');
           allClasses.push(className);
           classNameToDir[className] = dirPath;
@@ -281,7 +295,6 @@ function findAllClasses(basePathApex: string): { allClasses: string[]; className
   return { allClasses, classNameToDir };
 }
 
-// Dépendances LWC depuis HTML
 function extractHTMLDependencies(filePath: string): string[] {
   if (!fs.existsSync(filePath)) return [];
   const html = fs.readFileSync(filePath, 'utf8');
@@ -289,7 +302,7 @@ function extractHTMLDependencies(filePath: string): string[] {
   const dependencies = new Set<string>();
   let match;
   while ((match = regex.exec(html))) {
-    dependencies.add(match[1]);  
+    dependencies.add(match[1]);
   }
   return [...dependencies];
 }
@@ -315,10 +328,17 @@ function extractTsJsApexDependencies(filePath: string): string[] {
   }
   return [...apexDeps];
 }
-function extractApexDependencies(clsFilePath: string, allClassNames: string[], selfClassName: string): string[] {
+function extractApexDependencies(
+  clsFilePath: string,
+  allClassNames: string[],
+  selfClassName: string
+): string[] {
   if (!fs.existsSync(clsFilePath)) return [];
   const code = fs.readFileSync(clsFilePath, 'utf8');
-  return allClassNames.filter((className) => className !== selfClassName && code.includes(className));
+  return allClassNames.filter(
+    (className) =>
+      className !== selfClassName && code.includes(className)
+  );
 }
 
 function isForbiddenFile(filePath: string): boolean {
@@ -337,22 +357,26 @@ function* walkDir(dir: string): Generator<string> {
   }
 }
 
-// === Nouvel utilitaire pour détecter les static resources dans ts/js ===
-function findStaticResourcesUsed(componentDir: string, staticResSet: Set<string>): void {
+function findStaticResourcesUsed(
+  componentDir: string,
+  staticResSet: Set<string>
+): void {
   for (const ext of ['.ts', '.js']) {
     const filePath = path.join(componentDir, path.basename(componentDir) + ext);
     if (!fs.existsSync(filePath)) continue;
     const code = fs.readFileSync(filePath, 'utf8');
-    const regex = /import\s+\w+\s+from\s+["']@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)["']/g;
+    const regex =
+      /import\s+\w+\s+from\s+["']@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)["']/g;
     let match;
     while ((match = regex.exec(code))) {
       staticResSet.add(match[1]);
     }
   }
 }
-
-// === Recherche la vraie staticresource avec ou sans extension ===
-function findStaticResourceFile(resourceDir: string, resName: string): string | null {
+function findStaticResourceFile(
+  resourceDir: string,
+  resName: string
+): string | null {
   const files = fs.readdirSync(resourceDir);
   for (const file of files) {
     if (file === resName || file.startsWith(resName + '.')) {
@@ -361,14 +385,16 @@ function findStaticResourceFile(resourceDir: string, resName: string): string | 
   }
   return null;
 }
-
-function findStaticResourcesUsedForComponent(componentDir: string): string[] {
+function findStaticResourcesUsedForComponent(
+  componentDir: string
+): string[] {
   const res = new Set<string>();
   for (const ext of ['.ts', '.js']) {
     const filePath = path.join(componentDir, path.basename(componentDir) + ext);
     if (!fs.existsSync(filePath)) continue;
     const code = fs.readFileSync(filePath, 'utf8');
-    const regex = /import\s+\w+\s+from\s+["']@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)["']/g;
+    const regex =
+      /import\s+\w+\s+from\s+["']@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)["']/g;
     let match;
     while ((match = regex.exec(code))) {
       res.add(match[1]);

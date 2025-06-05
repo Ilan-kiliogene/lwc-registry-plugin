@@ -6,7 +6,6 @@ import fetch from 'node-fetch';
 import unzipper from 'unzipper';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import fsExtra from 'fs-extra';
-import { Registry } from '../../utils/types.js';
 import { SERVER_URL } from '../../utils/constants.js';
 import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError, findEntryOrError, safeRemove, getDestination } from '../../utils/functions.js';
 import { promptComponentOrClass, promptSelectName, promptSelectVersion, promptTargetDirectory } from '../../utils/prompts.js';
@@ -27,7 +26,7 @@ export default class RegistryDownload extends SfCommand<void> {
     const entry = findEntryOrError.call(this,entries,name);
     const version = await promptSelectVersion(entry, name);
     const targetDirectory = await promptTargetDirectory();
-    await this.downloadAndExtract(SERVER_URL, type, name, version, catalog, targetDirectory);
+    await this.downloadAndExtract(SERVER_URL, type, name, version, targetDirectory);
     } catch (error) {
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -38,7 +37,6 @@ export default class RegistryDownload extends SfCommand<void> {
     type: string,
     name: string,
     version: string,
-    registry: Registry,
     targetDirectory: string 
   ): Promise<void> {
 

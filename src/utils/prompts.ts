@@ -158,3 +158,36 @@ export async function promptTargetDirectory(): Promise<string> {
   const finalDir = path.join(projectRoot,choice);
   return finalDir;
 }
+
+
+// =========================================
+//  PROMPT POUR ÉCRIRE LA VERSION À DÉPLOYER
+// =========================================
+export async function promptVersionToEnter(message = 'Numéro de version à déployer ? (ex: 1.0.0)'): Promise<string> {
+  const { version } = await inquirer.prompt<{ version: string }>([
+    {
+      name: 'version',
+      type: 'input',
+      message,
+      validate: (input) =>
+        /^\d+\.\d+\.\d+$/.test(input) ? true : 'Format attendu : x.y.z',
+    },
+  ]);
+  return version;
+}
+
+
+// ============================================
+//  PROMPT POUR ÉCRIRE LA DESCRIPTION À DÉPLOYER
+// =============================================
+export async function promptDescriptionToEnter(message = 'Description ?'): Promise<string> {
+  const { description } = await inquirer.prompt<{ description: string }>([
+    {
+      name: 'description',
+      type: 'input',
+      message,
+      validate: (input) => input.trim() !== '' || 'La description est requise.',
+    },
+  ]);
+  return description;
+}

@@ -12,3 +12,5 @@ export declare function promptDeleteConfirmation(params: {
 }): Promise<boolean>;
 export declare function promptSelectVersion(entry: ComponentOrClassEntry, name: string): Promise<string>;
 export declare function promptTargetDirectory(): Promise<string>;
+export declare function promptVersionToEnter(message?: string): Promise<string>;
+export declare function promptDescriptionToEnter(message?: string): Promise<string>;
