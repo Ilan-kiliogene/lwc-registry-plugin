@@ -5,4 +5,6 @@ export default class RegistryDownload extends SfCommand<void> {
     run(): Promise<void>;
     private downloadAndExtract;
     private handleExtraction;
+    private getItemTypeFromFiles;
+    private copyStaticResource;
 }

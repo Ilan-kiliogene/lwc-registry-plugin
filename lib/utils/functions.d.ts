@@ -1,4 +1,4 @@
-import type { ComponentOrClassEntry, Registry } from './types.js';
+import { ComponentOrClassEntry, Registry } from './types.js';
 export declare function findProjectRoot(currentDir: string): string;
 export declare function fetchCatalog(this: {
     error: (msg: string) => never;
@@ -10,3 +10,6 @@ export declare function getNonEmptyItemsOrError(this: {
 export declare function findEntryOrError(this: {
     error: (msg: string) => never;
 }, items: ComponentOrClassEntry[], name: string): ComponentOrClassEntry;
+export declare function safeRemove(this: {
+    error: (msg: string) => never;
+}, fileOrDir: string): Promise<void>;

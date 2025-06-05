@@ -13,6 +13,7 @@
     "inquirer": "^12.6.0",
     "kleur": "^4.1.5",
     "node-fetch": "^3.3.2",
+    "unzipper": "^0.12.3",
     "zod": "^3.25.32"
   },
   "devDependencies": {
@@ -21,6 +22,7 @@
     "@salesforce/dev-scripts": "^10",
     "@types/adm-zip": "^0.5.7",
     "@types/fs-extra": "^11.0.4",
+    "@types/unzipper": "^0.10.11",
     "eslint-plugin-sf-plugin": "^1.18.6",
     "oclif": "^4.14.0",
     "ts-node": "^10.9.2",

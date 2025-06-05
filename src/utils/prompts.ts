@@ -1,7 +1,7 @@
 import path from 'node:path';
 import inquirer from 'inquirer';
-import type { ComponentOrClassEntry, ComponentOrClassVersion } from './types';
-import { findProjectRoot } from './functions';
+import type { ComponentOrClassEntry, ComponentOrClassVersion } from './types.js';
+import { findProjectRoot } from './functions.js';
 
 
 // =======================================================================

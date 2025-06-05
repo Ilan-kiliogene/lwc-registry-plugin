@@ -1,7 +1,9 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import type { ComponentOrClassEntry,  Registry} from './types.js';
+import fsExtra from 'fs-extra';
+import { ComponentOrClassEntry,  Registry} from './types.js';
 import { registrySchema } from './types.js';
+
 
 // ===============================================
 //  UTILITAIRE : Trouve la racine d’un projet SFDX
@@ -84,4 +86,19 @@ export function findEntryOrError(
     this.error(`Élément "${name}" introuvable.`);
   }
   return selectedEntry;
+}
+
+
+// ===============================================
+//  UTILITAIRE : Supprime un fichier ou un dossier
+// ===============================================
+export async function safeRemove(  
+  this: { error: (msg: string) => never },
+  fileOrDir: string
+): Promise<void> {
+  try {
+    await fsExtra.remove(fileOrDir);
+  } catch (err) {
+    this.error(`⚠️ Impossible de supprimer ${fileOrDir}: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }

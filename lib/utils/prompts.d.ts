@@ -1,4 +1,4 @@
-import type { ComponentOrClassEntry, ComponentOrClassVersion } from './types';
+import type { ComponentOrClassEntry, ComponentOrClassVersion } from './types.js';
 export declare function promptComponentOrClass(message: string): Promise<'component' | 'class'>;
 export declare function promptSelectName(message: string, names: string[]): Promise<string>;
 export declare function promptValidNameCommandCreate(message: string): Promise<string>;
