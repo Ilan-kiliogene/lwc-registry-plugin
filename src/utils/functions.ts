@@ -1,9 +1,8 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import fsExtra from 'fs-extra';
-import { ComponentOrClassEntry,  Registry} from './types.js';
+import { ComponentOrClassEntry, Registry } from './types.js';
 import { registrySchema } from './types.js';
-
 
 // ===============================================
 //  UTILITAIRE : Trouve la racine d’un projet SFDX
@@ -20,14 +19,10 @@ export function findProjectRoot(currentDir: string): string {
   return dir;
 }
 
-
 // =====================================================
 //  UTILITAIRE : Récupère et valide le catalogue distant
 // =====================================================
-export async function fetchCatalog(
-  this: { error: (msg: string) => never},
-  server: string
-): Promise<Registry> {
+export async function fetchCatalog(this: { error: (msg: string) => never }, server: string): Promise<Registry> {
   try {
     const res = await fetch(`${server}/catalog`);
     if (!res.ok) this.error(`Erreur ${res.status} lors de la récupération du registre`);
@@ -35,12 +30,9 @@ export async function fetchCatalog(
 
     const result = registrySchema.safeParse(json);
     if (!result.success) {
-      this.error(
-        'Format du registre invalide : ' +
-        result.error.issues.map(i => i.message).join('; ')
-      );
+      this.error('Format du registre invalide : ' + result.error.issues.map((i) => i.message).join('; '));
     }
-    return result.data; 
+    return result.data;
   } catch (error) {
     this.error(error instanceof Error ? error.message : String(error));
   }
@@ -53,7 +45,6 @@ export function getCleanTypeLabel(type: 'component' | 'class', plural = true): s
   if (type === 'component') return plural ? 'Composants LWC' : 'composant LWC';
   return plural ? 'Classes Apex' : 'classe Apex';
 }
-
 
 // ===========================================================
 //  UTILITAIRE : Récupère la partie du catalog voulue non vide
@@ -72,7 +63,6 @@ export function getNonEmptyItemsOrError(
   return items;
 }
 
-
 // ======================================================
 //  UTILITAIRE : Trouve une entrée dans le catalog valide
 // ======================================================
@@ -88,14 +78,10 @@ export function findEntryOrError(
   return selectedEntry;
 }
 
-
 // ===============================================
 //  UTILITAIRE : Supprime un fichier ou un dossier
 // ===============================================
-export async function safeRemove(  
-  this: { error: (msg: string) => never },
-  fileOrDir: string
-): Promise<void> {
+export async function safeRemove(this: { error: (msg: string) => never }, fileOrDir: string): Promise<void> {
   try {
     await fsExtra.remove(fileOrDir);
   } catch (err) {
@@ -103,13 +89,12 @@ export async function safeRemove(
   }
 }
 
-
 // =================================================
 //  UTILITAIRE : Renvoie le bon chemin selon le type
 // =================================================
 export function getDestination(targetDir: string, itemType: 'component' | 'class', itemName: string): string {
-  if (itemType==='component'){
-    return path.join(targetDir,'lwc',itemName)
+  if (itemType === 'component') {
+    return path.join(targetDir, 'lwc', itemName);
   }
-  return path.join(targetDir,'classes',itemName)
+  return path.join(targetDir, 'classes', itemName);
 }

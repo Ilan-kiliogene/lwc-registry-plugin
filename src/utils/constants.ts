@@ -7,8 +7,23 @@ import { z } from 'zod';
 const rawConfig = {
   SERVER_URL: 'https://registry.kiliogene.com',
   FORBIDDEN_EXTENSIONS: [
-    '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.exe', '.scr', '.vbs',
-    '.msi', '.php', '.py', '.pl', '.rb', '.jar', '.com', '.wsf',
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.bat',
+    '.cmd',
+    '.ps1',
+    '.exe',
+    '.scr',
+    '.vbs',
+    '.msi',
+    '.php',
+    '.py',
+    '.pl',
+    '.rb',
+    '.jar',
+    '.com',
+    '.wsf',
   ],
   // ...autres configs ici si besoin
 };
