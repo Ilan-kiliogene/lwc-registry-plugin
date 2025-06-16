@@ -6,22 +6,9 @@ import { finished } from 'node:stream/promises';
 import archiver from 'archiver';
 import fetch from 'node-fetch';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { SERVER_URL, FORBIDDEN_EXTENSIONS } from '../../utils/constants.js';
+import { SERVER_URL, FORBIDDEN_EXTENSIONS, PATHS, FILENAMES, registryMetaFileSchema } from '../../utils/constants.js';
 import { promptComponentOrClass, promptSelectName, promptVersionToEnter, promptDescriptionToEnter } from '../../utils/prompts.js';
-import { findProjectRoot, getCleanTypeLabel } from '../../utils/functions.js';
-
-// --- Constants ---
-// Centraliser les constantes pour une meilleure maintenance
-const PATHS = {
-  STATIC_RESOURCES: 'force-app/main/default/staticresources',
-  LWC: 'force-app/main/default/lwc',
-  APEX: 'force-app/main/default/classes',
-};
-
-const FILENAMES = {
-  METADATA: 'metadata.json',
-  DEPS: 'registry-deps.json',
-};
+import { findProjectRoot, getCleanTypeLabel, fileExistsAndIsFile } from '../../utils/functions.js';
 
 // --- Types ---
 type ItemType = 'component' | 'class';
@@ -57,7 +44,7 @@ export default class RegistryDeploy extends SfCommand<void> {
       const { allComponents, allClasses, classNameToDir } = await this.scanProject();
 
       // Étape 2 : Interaction utilisateur
-      const userInput = await this.gatherUserInput(allComponents, allClasses);
+      const userInput = await this.gatherUserInput(allComponents, allClasses, classNameToDir);
 
       // Étape 3 : Collecte des dépendances
       const analysisParams = { allComponents, allClasses, classNameToDir, version: userInput.version };
@@ -86,7 +73,9 @@ export default class RegistryDeploy extends SfCommand<void> {
   /** Étape 1: Gère les prompts pour l'utilisateur. */
   private async gatherUserInput(
     allComponents: string[],
-    allClasses: string[]): 
+    allClasses: string[],
+    classNameToDir: Record<string, string> 
+  ): 
     Promise<{
     name: string;
     type: 'component' | 'class';
@@ -103,8 +92,21 @@ export default class RegistryDeploy extends SfCommand<void> {
     }
 
     const name = await promptSelectName(`Quel ${cleanType} voulez-vous déployer ?`, items);
-    const version = await promptVersionToEnter();
-    const description = await promptDescriptionToEnter();
+
+    let version: string;
+    let description: string;
+
+    const meta = await this.tryReadRegistryMeta(type, name, classNameToDir);
+
+    if (meta) {
+      this.log(`ℹ️ Fichier ${FILENAMES.REGISTRY_META} trouvé et valide. Utilisation des valeurs...`);
+      version = meta.version;
+      description = meta.description;
+    } else {
+      this.log(`ℹ️ Fichier ${FILENAMES.REGISTRY_META} non trouvé ou invalide. Passage en mode interactif...`);
+      version = await promptVersionToEnter();
+      description = await promptDescriptionToEnter();
+    }
 
     return { name, type, version, description };
   }
@@ -374,16 +376,35 @@ export default class RegistryDeploy extends SfCommand<void> {
       }
     }
   }
-}
 
-async function fileExistsAndIsFile(filePath: string): Promise<boolean> {
-  try {
-    const stats = await fs.stat(filePath);
-    return stats.isFile(); // On vérifie en plus que ce n'est pas un dossier
-  } catch (error) {
-    return false;
+  private async tryReadRegistryMeta(
+    type: ItemType,
+    name: string,
+    classNameToDir: Record<string, string>
+  ): Promise<{ version: string; description: string } | null> {
+    const componentDir = type === 'component' ? path.join(this.basePathLwc, name) : classNameToDir[name];
+    if (!componentDir) return null;
+
+    const metaFilePath = path.join(componentDir, FILENAMES.REGISTRY_META);
+
+    try {
+      const fileContent = await fs.readFile(metaFilePath, 'utf8');
+      const result = registryMetaFileSchema.safeParse(JSON.parse(fileContent));
+
+      if (!result.success) {
+        this.warn(`Fichier ${FILENAMES.REGISTRY_META} invalide : ${result.error.issues.map(i => i.message).join(', ')}`);
+        return null; // Le fichier est mal formé, on ignore
+      }
+
+      return result.data; // Succès, on retourne les données validées
+
+    } catch (error) {
+      // Gère les erreurs de lecture de fichier (ex: non trouvé) ou de parsing JSON
+      return null;
+    }
   }
 }
+
 
 async function extractApexDependencies(clsFilePath: string, allClassNames: string[], selfClassName: string): Promise<string[]> {
   const code = await fs.readFile(clsFilePath, 'utf8');

@@ -1,9 +1,10 @@
 import path from 'node:path';
-import { execSync } from 'node:child_process';
-import fs from 'node:fs';
+import { promises as fs } from 'node:fs';
+import { execa } from 'execa';
 import { SfCommand } from '@salesforce/sf-plugins-core';
-import { findProjectRoot, getCleanTypeLabel } from '../../utils/functions.js';
+import { findProjectRoot, getCleanTypeLabel, fileExistsAndIsFile } from '../../utils/functions.js';
 import { promptComponentOrClass, promptValidNameCommandCreate } from '../../utils/prompts.js';
+import { FILENAMES } from '../../utils/constants.js';
 
 export default class RegistryTemplate extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
@@ -15,120 +16,87 @@ export default class RegistryTemplate extends SfCommand<void> {
       const type = await promptComponentOrClass('Quel type de template veux-tu créer ?');    
       const cleanType = getCleanTypeLabel(type, false) 
       const name = await promptValidNameCommandCreate(`Nom du ${cleanType}`)
-      const folder = this.getTargetFolder(type, name);
-      this.createRegistryMetaJson(folder)
-      this.log('📝 Remplis les champs "description" et "version" avant de déployer !');
+      const folder = await this.getTargetFolder(type, name);
+      await this.createRegistryMetaJson(folder)
+      this.log(`✅ ${getCleanTypeLabel(type, false)} "${name}" créé avec succès.`);
     } catch (error) {
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
 
-  private getTargetFolder(type: 'component' | 'class', name: string): string {
+  private async getTargetFolder(type: 'component' | 'class', name: string): Promise<string> {
     if (type === 'component') {
       return this.createLwcComponent(name);
     }
     return this.createApexClass(name);
   }
 
-
-  private createLwcComponent(name: string): string {
+  private async createLwcComponent(name: string): Promise<string> {
     const projectRoot = findProjectRoot(process.cwd());
     const lwcParent = path.join(projectRoot, 'force-app', 'main', 'default', 'lwc');
     const folder = path.join(lwcParent, name);
 
-    try {
-      fs.mkdirSync(lwcParent, { recursive: true });
-      this.log('⏳ Création du composant LWC...');
-      execSync(`sf lightning component generate --type lwc --name ${name}`, {
-        stdio: 'inherit',
-        cwd: lwcParent,
-      });
-    } catch (error) {
-      throw new Error(
-        `Erreur lors de la création du composant LWC : ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
+    await fs.mkdir(lwcParent, { recursive: true });
+    this.log('⏳ Création du composant LWC...');
+    // Utilisation de execa pour un meilleur contrôle asynchrone
+    await execa('sf', ['lightning', 'component', 'generate', '--type', 'lwc', '--name', name], {
+      cwd: lwcParent,
+      stdio: 'inherit', // Affiche la sortie de la commande en temps réel
+    });
 
     // Renomme le .js en .ts si besoin
     const jsFile = path.join(folder, `${name}.js`);
     const tsFile = path.join(folder, `${name}.ts`);
-    try {
-      if (fs.existsSync(jsFile)) {
-        fs.renameSync(jsFile, tsFile);
+    if (await fileExistsAndIsFile(jsFile)) {
+        await fs.rename(jsFile, tsFile);
         this.log(`🔁 Fichier ${name}.js renommé en ${name}.ts`);
-      } else {
-        this.log(`⚠️ Fichier JS introuvable pour renommer en TS (${jsFile})`);
-      }
-    } catch (error) {
-      this.error(`❌ Erreur lors du renommage en TS : ${error instanceof Error ? error.message : String(error)}`);
     }
-
     return folder;
   }
 
 
-  private createApexClass(name: string): string {
+  private async createApexClass(name: string): Promise<string> {
     const projectRoot = findProjectRoot(process.cwd());
     const classesParent = path.join(projectRoot, 'force-app', 'main', 'default', 'classes');
     const folder = path.join(classesParent, name);
 
-    try {
-      fs.mkdirSync(classesParent, { recursive: true });
-      this.log('⏳ Création de la classe Apex...');
-      execSync(`sf apex class generate --name ${name}`, {
-        stdio: 'inherit',
-        cwd: classesParent,
-      });
-    } catch (error) {
-      throw new Error(
-        `Erreur lors de la création de la classe Apex : ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
+    await fs.mkdir(classesParent, { recursive: true });
+    this.log('⏳ Création de la classe Apex...');
+    await execa('sf', ['apex', 'class', 'generate', '--name', name], {
+      cwd: classesParent,
+      stdio: 'inherit',
+    });
 
-    // Crée le sous-dossier si besoin
-    try {
-      if (!fs.existsSync(folder)) {
-        fs.mkdirSync(folder, { recursive: true });
-      }
-    } catch (error) {
-      this.error(`❌ Erreur création du dossier ${folder} : ${error instanceof Error ? error.message : String(error)}`);
-    }
+    // Crée le sous-dossier
+    await fs.mkdir(folder, { recursive: true });
 
     // Déplace les fichiers générés dans le sous-dossier
     const clsPath = path.join(classesParent, `${name}.cls`);
     const metaXmlPath = path.join(classesParent, `${name}.cls-meta.xml`);
-    const destCls = path.join(folder, `${name}.cls`);
-    const destMeta = path.join(folder, `${name}.cls-meta.xml`);
-    try {
-      if (fs.existsSync(clsPath)) {
-        fs.renameSync(clsPath, destCls);
-      }
-      if (fs.existsSync(metaXmlPath)) {
-        fs.renameSync(metaXmlPath, destMeta);
-      }
-    } catch (error) {
-      this.log(
-        `❌ Erreur lors du déplacement des fichiers de la classe Apex : ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
+    
+    await fs.rename(clsPath, path.join(folder, `${name}.cls`));
+    await fs.rename(metaXmlPath, path.join(folder, `${name}.cls-meta.xml`));
 
     return folder;
   }
 
 
-  private createRegistryMetaJson(folder: string): void {
-    const metaPath = path.join(folder, 'registry-meta.json');
+  private async createRegistryMetaJson(folder: string): Promise<void> {
+    // On utilise la constante pour être sûr d'avoir le même nom de fichier que la commande 'deploy'
+    const metaPath = path.join(folder, FILENAMES.REGISTRY_META);
     const meta = { description: '', version: '' };
     try {
-      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
-      this.log(`✅ Fichier registry-meta.json généré dans ${metaPath}`);
+      // On utilise la version asynchrone de writeFile
+      await fs.writeFile(metaPath, JSON.stringify(meta, null, 2));
+      this.log(`✅ Fichier ${FILENAMES.REGISTRY_META} généré dans ${metaPath}`);
     } catch (error) {
-      this.error(
-        `❌ Erreur lors de la création du fichier meta: ${error instanceof Error ? error.message : String(error)}`
+      // On lève une erreur qui sera attrapée par le catch de la méthode run()
+      throw new Error(
+        `Erreur lors de la création du fichier ${FILENAMES.REGISTRY_META}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       );
     }
-  }  
+  }
 }

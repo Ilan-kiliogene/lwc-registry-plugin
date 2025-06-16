@@ -98,3 +98,13 @@ export function getDestination(targetDir: string, itemType: 'component' | 'class
   }
   return path.join(targetDir, 'classes', itemName);
 }
+
+
+export async function fileExistsAndIsFile(filePath: string): Promise<boolean> {
+  try {
+    const stats = await fs.promises.stat(filePath);
+    return stats.isFile(); // On vérifie en plus que ce n'est pas un dossier
+  } catch (error) {
+    return false;
+  }
+}

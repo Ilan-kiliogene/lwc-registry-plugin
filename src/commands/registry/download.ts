@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import { createWriteStream, createReadStream } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import fetch from 'node-fetch';
@@ -17,143 +18,130 @@ export default class RegistryDownload extends SfCommand<void> {
   public static readonly examples = ['$ sf registry download'];
 
   public async run(): Promise<void> {
+    const tmpDir = path.join(os.tmpdir(), `registry-download-${randomUUID()}`);
+    let zipPath: string | undefined;
+
     try {
-    const type = await promptComponentOrClass('Que veux-tu télécharger ?');
-    const catalog = await fetchCatalog.call(this,SERVER_URL);
-    const cleanType = getCleanTypeLabel(type,false );
-    const entries = getNonEmptyItemsOrError.call(this,catalog,type,cleanType,'à télécharger');
-    const name = await promptSelectName(`Quel ${cleanType} veux-tu télécharger ?`, entries.map(e => e.name));
-    const entry = findEntryOrError.call(this,entries,name);
-    const version = await promptSelectVersion(entry, name);
-    const targetDirectory = await promptTargetDirectory();
-    await this.downloadAndExtract(SERVER_URL, type, name, version, targetDirectory);
+      const type = await promptComponentOrClass('Que veux-tu télécharger ?');
+      const catalog = await fetchCatalog.call(this, SERVER_URL);
+      const cleanType = getCleanTypeLabel(type, false);
+      const entries = getNonEmptyItemsOrError.call(this, catalog, type, cleanType, 'à télécharger');
+      const name = await promptSelectName(`Quel ${cleanType} veux-tu télécharger ?`, entries.map((e) => e.name));
+      const entry = findEntryOrError.call(this, entries, name);
+      const version = await promptSelectVersion(entry, name);
+      const targetDirectory = await promptTargetDirectory();
+
+      zipPath = await this.downloadZip(SERVER_URL, type, name, version);
+      await extractZip(zipPath, tmpDir);
+      await this.handleExtraction(tmpDir, targetDirectory);
+
+      this.log('✅ Téléchargement et extraction terminés avec succès !');
     } catch (error) {
-      this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`❌ Le téléchargement a échoué : ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      // Nettoyage final
+      await Promise.all([
+        zipPath ? safeRemove.call(this, zipPath) : Promise.resolve(),
+        safeRemove.call(this, tmpDir),
+      ]);
     }
   }
 
-  private async downloadAndExtract(
-    server: string,
-    type: string,
-    name: string,
-    version: string,
-    targetDirectory: string 
-  ): Promise<void> {
-
+  private async downloadZip(server: string, type: string, name: string, version: string): Promise<string> {
     const url = `${server}/download/${type}/${name}/${version}`;
     const zipPath = path.join(os.tmpdir(), `${name}-${version}-${randomUUID()}.zip`);
-    const tmpExtractPath = path.join(os.tmpdir(), `registry-download-${randomUUID()}`);
     this.log(`📥 Téléchargement depuis ${url}...`);
-    try {
-      const res = await fetch(url);
-      if (!res.ok) this.error(`❌ Erreur HTTP ${res.status}: ${res.statusText}`);
-      if (!res.body) this.error('Réponse HTTP sans body !');
 
-      // 1. Téléchargement du zip (stream direct disque)
-      const fileStream = fs.createWriteStream(zipPath);
-      await new Promise<void>((resolve, reject) => {
-        res.body!.pipe(fileStream);
-        res.body!.on('error', reject);
-        fileStream.on('finish', resolve);
-        fileStream.on('error', reject);
-      });
-  
-      // 2. Extraction avec unzipper (promesse manuelle pour TS)
-      await fs.promises.mkdir(tmpExtractPath, { recursive: true });
-      await new Promise<void>((resolve, reject) => {
-        fs.createReadStream(zipPath)
-          .pipe(unzipper.Extract({ path: tmpExtractPath }))
-          .on('close', resolve)
-          .on('error', reject);
-      });
-  
-      // 3. Traitement métier custom
-      await this.handleExtraction(tmpExtractPath, targetDirectory);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Erreur HTTP ${res.status}: ${res.statusText}`);
+    if (!res.body) throw new Error('Réponse HTTP sans body !');
 
-      this.log('✅ Tous les items ont été extraits au bon endroit !');
-
-    } catch (error) {
-      this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      await safeRemove.call(this,zipPath)
-      await safeRemove.call(this,tmpExtractPath)
-    }
+    const fileStream = createWriteStream(zipPath);
+    // Utilisation de stream.finished pour une gestion plus propre
+    await new Promise<void>((resolve, reject) => {
+        res.body!.pipe(fileStream).on('error', reject).on('finish', resolve);
+    });
+    
+    return zipPath;
   }
 
   
-  private async handleExtraction(
-    tmpExtractPath: string,
-    targetDirectory: string 
-  ): Promise<void> {
+  
+  private async handleExtraction(tmpExtractPath: string, targetDirectory: string): Promise<void> {
+    const allEntries = await fs.promises.readdir(tmpExtractPath, { withFileTypes: true });
+
     // 1. Extraction des composants/classes
-    const extractedDirs = 
-    fs.readdirSync(tmpExtractPath, { withFileTypes: true })
+    const componentAndClassDirs = allEntries
       .filter((e) => e.isDirectory() && e.name !== 'staticresources')
       .map((e) => e.name);
 
     await Promise.all(
-      extractedDirs.map(async (itemName) => {
-        try {
-          const sourceDir = path.join(tmpExtractPath,itemName)
-          const itemType = this.getItemTypeFromFiles(sourceDir);
-          const destinationDir = getDestination(targetDirectory,itemType,itemName)
+      componentAndClassDirs.map(async (itemName) => {
+        const sourceDir = path.join(tmpExtractPath, itemName);
+        const itemType = await getItemTypeFromFiles(sourceDir);
+        const destinationDir = getDestination(targetDirectory, itemType, itemName);
 
-          if (fs.existsSync(destinationDir)) {
-            this.error(`❌  ${itemType} "${itemName}" existe déjà dans ${destinationDir}. Ignoré.`);
+        // fsExtra.exists est déprécié, il vaut mieux tenter et attraper l'erreur
+        await fsExtra.move(sourceDir, destinationDir, { overwrite: false }).catch((err) => {
+          if (err instanceof Error && err.message.includes('dest already exists')) {
+            this.warn(`⚠️  ${itemType} "${itemName}" existe déjà. Extraction ignorée.`);
+          } else {
+            throw err; // Relancer les autres erreurs
           }
-
-          await fsExtra.move(sourceDir, destinationDir, { overwrite: false });
-          this.log(`✅ ${itemType} "${itemName}" extrait dans ${destinationDir}`);
-        } catch (error) {
-          this.error(`❌ Erreur lors de l'extraction de "${itemName}": ${error instanceof Error ? error.message : String(error)}`);
-        }
+        });
+        this.log(`✅ ${itemType} "${itemName}" extrait dans ${destinationDir}`);
       })
     );
 
-    // 2. Gestion des staticresources (parallèle)
-    try {
-      const staticResExtracted = path.join(tmpExtractPath, 'staticresources');
-      if (!fs.existsSync(staticResExtracted)) {
-        return; 
-      }
-      const staticResTarget = path.join(targetDirectory,'staticresources');
-      fsExtra.mkdirpSync(staticResTarget);
-      const resFiles = fs.readdirSync(staticResExtracted);
-      await Promise.all(resFiles.map(file => this.copyStaticResource(file, staticResExtracted, staticResTarget)));
-    } catch (error) {
-      this.error(`❌ Erreur lors du traitement des staticresources: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    // 2. Gestion des staticresources
+    const staticResExtracted = path.join(tmpExtractPath, 'staticresources');
+    if (!(await fileExists(staticResExtracted))) return;
+
+    const staticResTarget = path.join(targetDirectory, 'staticresources');
+    await fsExtra.ensureDir(staticResTarget);
+    const resFiles = await fs.promises.readdir(staticResExtracted);
+    
+    await Promise.all(resFiles.map(file => this.copyStaticResource(file, staticResExtracted, staticResTarget)));
   }
 
-  private getItemTypeFromFiles(dirPath: string): 'component' | 'class' {
-    const classExtensions = ['.cls']
-    const componentExtensions = ['.ts', '.js']
-    const files = fs.readdirSync(dirPath);
-    if (files.some(file => classExtensions.some(extension => file.endsWith(extension)))) {
-      return 'class';
-    } else if (files.some(file => componentExtensions.some(extension => file.endsWith(extension)))) {
-      return 'component';
-    }
-    this.error('❌ Erreur fichiers non reconnus lors de l extraction du zip')
-  }
+  
 
-  private async copyStaticResource(
-    file: string,
-    srcDir: string,
-    destDir: string,
-  ): Promise<void> {
+  private async copyStaticResource(file: string, srcDir: string, destDir: string): Promise<void> {
+    const src = path.join(srcDir, file);
+    const dest = path.join(destDir, file);
     try {
-      const src = path.join(srcDir, file);
-      const dest = path.join(destDir, file);
-      if (fs.existsSync(dest)) {
-        this.log(`⚠️  Fichier staticresource "${file}" déjà présent dans ${destDir}, non écrasé.`);
-        return;
-      }
-      await fsExtra.move(src, dest, { overwrite: false });
-      this.log(`✅ Staticresource "${file}" copié dans ${destDir}`);
+        await fsExtra.move(src, dest, { overwrite: false });
+        this.log(`✅ Staticresource "${file}" copiée dans ${destDir}`);
     } catch (error) {
-      this.error(`❌ Erreur lors de la copie de staticresource "${file}": ${error instanceof Error ? error.message : String(error)}`);
+        if(error instanceof Error && error.message.includes('dest already exists')) {
+            this.warn(`⚠️  Fichier staticresource "${file}" déjà présent. Copie ignorée.`);
+        } else {
+            throw error; // Relancer les autres erreurs
+        }
     }
   }
 }
 
+async function fileExists(filePath: string): Promise<boolean> {
+    try {
+        await fs.promises.access(filePath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function extractZip(zipPath: string, extractPath: string): Promise<void> {
+  await fs.promises.mkdir(extractPath, { recursive: true });
+  const stream = createReadStream(zipPath).pipe(unzipper.Extract({ path: extractPath }));
+  await new Promise((resolve, reject) => {
+      stream.on('close', resolve).on('error', reject);
+  });
+}
+
+async function getItemTypeFromFiles(dirPath: string): Promise<'component' | 'class'> {
+  const files = await fs.promises.readdir(dirPath);
+  if (files.some(file => file.endsWith('.cls'))) return 'class';
+  if (files.some(file => file.endsWith('.js') || file.endsWith('.ts'))) return 'component';
+  throw new Error(`Type de source non reconnu dans le dossier ${dirPath}`);
+}

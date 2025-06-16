@@ -23,8 +23,8 @@ export default class RegistryDeploy extends SfCommand<void> {
     private collectDependencies;
     private getItemDependencies;
     private getLwcDependencies;
-    private safeListDirNamesAsync;
     private findAllClassesAsync;
     private checkForbiddenFiles;
     private walkDirAsync;
+    private tryReadRegistryMeta;
 }
