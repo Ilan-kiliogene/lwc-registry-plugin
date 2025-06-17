@@ -30,7 +30,6 @@ export default class RegistryDownload extends SfCommand<void> {
       const entry = findEntryOrError.call(this, entries, name);
       const version = await promptSelectVersion(entry, name);
       const targetDirectory = await promptTargetDirectory();
-
       zipPath = await this.downloadZip(SERVER_URL, type, name, version);
       await extractZip(zipPath, tmpDir);
       await this.handleExtraction(tmpDir, targetDirectory);
