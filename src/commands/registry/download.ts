@@ -68,43 +68,63 @@ export default class RegistryDownload extends SfCommand<void> {
   
   
   private async handleExtraction(tmpExtractPath: string, targetDirectory: string): Promise<void> {
-    const allEntries = await fs.promises.readdir(tmpExtractPath, { withFileTypes: true });
-
-    // 1. Extraction des composants/classes
-    const componentAndClassDirs = allEntries
+    const extractedDirs = 
+    fs.readdirSync(tmpExtractPath, { withFileTypes: true })
       .filter((e) => e.isDirectory() && e.name !== 'staticresources')
       .map((e) => e.name);
 
     await Promise.all(
-      componentAndClassDirs.map(async (itemName) => {
-        const sourceDir = path.join(tmpExtractPath, itemName);
-        const itemType = await getItemTypeFromFiles(sourceDir);
-        const destinationDir = getDestination(targetDirectory, itemType, itemName);
-
-        // fsExtra.exists est déprécié, il vaut mieux tenter et attraper l'erreur
-        await fsExtra.move(sourceDir, destinationDir, { overwrite: false }).catch((err) => {
+      extractedDirs.map(async (itemName) => {
+        // On utilise un bloc try/catch pour mieux contrôler le flux
+        try {
+          const sourceDir = path.join(tmpExtractPath, itemName);
+          // La détection du type doit être asynchrone pour être cohérente
+          const itemType = await getItemTypeFromFiles(sourceDir);
+          const destinationDir = getDestination(targetDirectory, itemType, itemName);
+  
+          // On tente de déplacer le fichier
+          await fsExtra.move(sourceDir, destinationDir, { overwrite: false });
+  
+          // Cette ligne n'est atteinte QUE si fsExtra.move a réussi
+          this.log(`✅ ${itemType} "${itemName}" extrait dans ${destinationDir}`);
+  
+        } catch (err) {
+          // On intercepte l'erreur pour gérer le cas spécifique "existe déjà"
           if (err instanceof Error && err.message.includes('dest already exists')) {
-            this.warn(`⚠️  ${itemType} "${itemName}" existe déjà. Extraction ignorée.`);
+            this.warn(`⚠️  Un item nommé "${itemName}" existe déjà. Extraction ignorée.`);
           } else {
-            throw err; // Relancer les autres erreurs
+            // Pour toute autre erreur, on la propage pour faire échouer la commande
+            throw new Error(`Erreur lors de l'extraction de "${itemName}": ${err instanceof Error ? err.message : String(err)}`);
           }
-        });
-        this.log(`✅ ${itemType} "${itemName}" extrait dans ${destinationDir}`);
+        }
       })
     );
+    await this.handleStaticResources(tmpExtractPath, targetDirectory);
+    }
 
-    // 2. Gestion des staticresources
-    const staticResExtracted = path.join(tmpExtractPath, 'staticresources');
-    if (!(await fileExists(staticResExtracted))) return;
-
-    const staticResTarget = path.join(targetDirectory, 'staticresources');
-    await fsExtra.ensureDir(staticResTarget);
-    const resFiles = await fs.promises.readdir(staticResExtracted);
-    
-    await Promise.all(resFiles.map(file => this.copyStaticResource(file, staticResExtracted, staticResTarget)));
-  }
-
+    private async handleStaticResources(tmpExtractPath: string, targetDirectory: string): Promise<void> {
+      try {
+        const staticResExtracted = path.join(tmpExtractPath, 'staticresources');
+        
+        // Utilise la version asynchrone pour vérifier l'existence
+        if (!await fileExists(staticResExtracted)) {
+          return; 
+        }
   
+        const staticResTarget = path.join(targetDirectory, 'staticresources');
+        // Utilise la version asynchrone pour créer le dossier
+        await fsExtra.ensureDir(staticResTarget);
+  
+        // Utilise la version asynchrone pour lire le contenu du dossier
+        const resFiles = await fs.promises.readdir(staticResExtracted);
+  
+        await Promise.all(resFiles.map(file => this.copyStaticResource(file, staticResExtracted, staticResTarget)));
+  
+      } catch (error) {
+        // On lève une erreur pour qu'elle soit attrapée par le try/catch de la méthode `run`
+        throw new Error(`Erreur lors du traitement des staticresources: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
 
   private async copyStaticResource(file: string, srcDir: string, destDir: string): Promise<void> {
     const src = path.join(srcDir, file);
