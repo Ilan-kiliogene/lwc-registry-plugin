@@ -4,11 +4,15 @@ import path from 'node:path';
 import os from 'node:os';
 import { finished } from 'node:stream/promises';
 import archiver from 'archiver';
-import fetch from 'node-fetch';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import { SERVER_URL, FORBIDDEN_EXTENSIONS, PATHS, FILENAMES, registryMetaFileSchema } from '../../utils/constants.js';
-import { promptComponentOrClass, promptSelectName, promptVersionToEnter, promptDescriptionToEnter } from '../../utils/prompts.js';
-import { findProjectRoot, getCleanTypeLabel, fileExistsAndIsFile } from '../../utils/functions.js';
+import {
+  promptComponentOrClass,
+  promptSelectName,
+  promptVersionToEnter,
+  promptDescriptionToEnter,
+} from '../../utils/prompts.js';
+import { findProjectRoot, getCleanTypeLabel, fileExistsAndIsFile, authedFetch } from '../../utils/functions.js';
 
 // --- Types ---
 type ItemType = 'component' | 'class';
@@ -53,7 +57,7 @@ export default class RegistryDeploy extends SfCommand<void> {
       // Étape 4 : Validation
       const staticResources = new Set(itemsToZip.flatMap((item) => item.staticresources));
       await this.validateStaticResources(staticResources);
-      
+
       // Étape 5 : Création du paquet
       const zipFilePath = await this.createDeploymentPackage(itemsToZip, staticResources, userInput, classNameToDir);
 
@@ -62,29 +66,25 @@ export default class RegistryDeploy extends SfCommand<void> {
       await fs.unlink(zipFilePath);
 
       this.log('✅ Déploiement terminé avec succès !');
-
-  } catch (error) {
+    } catch (error) {
       this.error(`❌ Le déploiement a échoué : ${(error as Error).message}`);
+    }
   }
-}
-
-
 
   /** Étape 1: Gère les prompts pour l'utilisateur. */
   private async gatherUserInput(
     allComponents: string[],
     allClasses: string[],
-    classNameToDir: Record<string, string> 
-  ): 
-    Promise<{
+    classNameToDir: Record<string, string>
+  ): Promise<{
     name: string;
     type: 'component' | 'class';
     version: string;
     description: string;
-}> {
+  }> {
     const type = await promptComponentOrClass('Que voulez vous déployer ?');
     const cleanType = getCleanTypeLabel(type, false);
-    
+
     const items = type === 'component' ? allComponents : allClasses;
 
     if (items.length === 0) {
@@ -110,23 +110,23 @@ export default class RegistryDeploy extends SfCommand<void> {
 
     return { name, type, version, description };
   }
-    
+
   /** Étape 2: Scanne le projet pour trouver tous les composants et classes. */
   private async scanProject(): Promise<{
     allComponents: string[];
     allClasses: string[];
     classNameToDir: Record<string, string>;
-}> {
+  }> {
     try {
       const [allComponents, { allClasses, classNameToDir }] = await Promise.all([
-          // Cette fonction ne fait plus appel à this.error()
-          safeListDirNamesAsync(this.basePathLwc), 
-          this.findAllClassesAsync(this.basePathApex)
+        // Cette fonction ne fait plus appel à this.error()
+        safeListDirNamesAsync(this.basePathLwc),
+        this.findAllClassesAsync(this.basePathApex),
       ]);
       return { allComponents, allClasses, classNameToDir };
     } catch (error) {
-        // C'est ici, à un plus haut niveau, qu'on gère l'affichage de l'erreur
-        this.error(`❌ Une erreur est survenue lors de l'analyse du projet : ${(error as Error).message}`);
+      // C'est ici, à un plus haut niveau, qu'on gère l'affichage de l'erreur
+      this.error(`❌ Une erreur est survenue lors de l'analyse du projet : ${(error as Error).message}`);
     }
   }
 
@@ -136,10 +136,10 @@ export default class RegistryDeploy extends SfCommand<void> {
       const resourceDir = path.join(this.projectRoot, PATHS.STATIC_RESOURCES);
       const metaFile = path.join(resourceDir, `${resName}.resource-meta.xml`);
 
-      if (!await findStaticResourceFileAsync(resourceDir, resName)) {
+      if (!(await findStaticResourceFileAsync(resourceDir, resName))) {
         throw new Error(`Ressource statique "${resName}" référencée mais introuvable.`);
       }
-      if (!await fileExistsAndIsFile(metaFile)) {
+      if (!(await fileExistsAndIsFile(metaFile))) {
         throw new Error(`Fichier .resource-meta.xml manquant pour la ressource statique "${resName}".`);
       }
     });
@@ -147,7 +147,9 @@ export default class RegistryDeploy extends SfCommand<void> {
     try {
       await Promise.all(checks);
     } catch (err) {
-      this.error(`❌ Erreur de validation des ressources statiques : ${(err as Error).message}\nAbandon du déploiement.`);
+      this.error(
+        `❌ Erreur de validation des ressources statiques : ${(err as Error).message}\nAbandon du déploiement.`
+      );
     }
   }
 
@@ -165,9 +167,7 @@ export default class RegistryDeploy extends SfCommand<void> {
 
     // Ajoute les composants et classes
     for (const item of itemsToZip) {
-      const dirToAdd = item.type === 'component'
-        ? path.join(this.basePathLwc, item.name)
-        : classNameToDir[item.name];
+      const dirToAdd = item.type === 'component' ? path.join(this.basePathLwc, item.name) : classNameToDir[item.name];
       archive.directory(dirToAdd, item.name);
     }
 
@@ -198,18 +198,18 @@ export default class RegistryDeploy extends SfCommand<void> {
 
     return tmpFile;
   }
-  
+
   /** Étape 5: Envoie le paquet ZIP au serveur. */
   private async sendPackage(zipFilePath: string, type: ItemType): Promise<void> {
     this.log(`📤 Envoi de ${zipFilePath} (${type}) vers ${SERVER_URL}/deploy...`);
     try {
       const stats = await fs.stat(zipFilePath);
-      const res = await fetch(`${SERVER_URL}/deploy`, {
+      const res = await authedFetch(`${SERVER_URL}/deploy`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/zip',
           'Content-Length': stats.size.toString(),
-         },
+        },
         body: createReadStream(zipFilePath),
       });
       const resultText = await res.text();
@@ -221,7 +221,6 @@ export default class RegistryDeploy extends SfCommand<void> {
       this.error(`❌ Erreur réseau : ${(err as Error).message}`);
     }
   }
-
 
   private async collectDependencies(
     dependenceName: string,
@@ -238,19 +237,18 @@ export default class RegistryDeploy extends SfCommand<void> {
     if (seen.has(key)) return [];
     seen.add(key);
 
-    const directoryPath = dependenceType === 'component'
+    const directoryPath =
+      dependenceType === 'component'
         ? path.join(this.basePathLwc, dependenceName)
         : params.classNameToDir[dependenceName];
-    
+
     await this.checkForbiddenFiles(directoryPath);
 
     const [dependencies, staticresources] = await Promise.all([
       this.getItemDependencies(dependenceName, dependenceType, params),
-      dependenceType === 'component'
-        ? findStaticResourcesForComponent(directoryPath)
-        : Promise.resolve([]),
+      dependenceType === 'component' ? findStaticResourcesForComponent(directoryPath) : Promise.resolve([]),
     ]);
-    
+
     const isFirstItem = seen.size === 1;
     const item: RegistryDep = {
       name: dependenceName,
@@ -278,10 +276,10 @@ export default class RegistryDeploy extends SfCommand<void> {
     // Cas 'class'
     const dirClass = params.classNameToDir[name];
     if (!dirClass) throw new Error(`Dossier introuvable pour la classe Apex "${name}".`);
-    
+
     const clsFile = path.join(dirClass, `${name}.cls`);
     const apexDeps = await extractApexDependencies(clsFile, params.allClasses, name);
-    return apexDeps.map(depName => ({ name: depName, type: 'class' }));
+    return apexDeps.map((depName) => ({ name: depName, type: 'class' }));
   }
 
   private async getLwcDependencies(
@@ -321,40 +319,41 @@ export default class RegistryDeploy extends SfCommand<void> {
     return Array.from(uniqueDependencies.values());
   }
 
-
   // =================================================================
   // FONCTIONS UTILITAIRES DE SYSTÈME DE FICHIERS (FILE SYSTEM)
   // =================================================================
 
-  
+  private async findAllClassesAsync(
+    basePathApex: string
+  ): Promise<{ allClasses: string[]; classNameToDir: Record<string, string> }> {
+    try {
+      const allClasses: string[] = [];
+      const classNameToDir: Record<string, string> = {};
+      const classDirs = await safeListDirNamesAsync(basePathApex);
 
-  private async findAllClassesAsync(basePathApex: string): Promise<{ allClasses: string[]; classNameToDir: Record<string, string> }> {
-      try {
-        const allClasses: string[] = [];
-        const classNameToDir: Record<string, string> = {};
-        const classDirs = await safeListDirNamesAsync(basePathApex);
-        
-        const filesByDir = await Promise.all(classDirs.map(async (dirName) => {
-            const dirPath = path.join(basePathApex, dirName);
-            const files = await fs.readdir(dirPath);
-            return { dirPath, files };
-        }));
+      const filesByDir = await Promise.all(
+        classDirs.map(async (dirName) => {
+          const dirPath = path.join(basePathApex, dirName);
+          const files = await fs.readdir(dirPath);
+          return { dirPath, files };
+        })
+      );
 
-        for (const { dirPath, files } of filesByDir) {
-            for (const file of files) {
-                if (file.endsWith('.cls') && !file.endsWith('.cls-meta.xml')) {
-                    const className = path.basename(file, '.cls');
-                    allClasses.push(className);
-                    classNameToDir[className] = dirPath;
-                }
-            }
+      for (const { dirPath, files } of filesByDir) {
+        for (const file of files) {
+          if (file.endsWith('.cls') && !file.endsWith('.cls-meta.xml')) {
+            const className = path.basename(file, '.cls');
+            allClasses.push(className);
+            classNameToDir[className] = dirPath;
+          }
         }
-        return { allClasses, classNameToDir };
-      } catch (error) {
-        this.error(`❌ Erreur lors de la recherche des classes Apex: ${(error as Error).message}`);
       }
+      return { allClasses, classNameToDir };
+    } catch (error) {
+      this.error(`❌ Erreur lors de la recherche des classes Apex: ${(error as Error).message}`);
+    }
   }
-  
+
   private async checkForbiddenFiles(directoryPath: string): Promise<void> {
     // Remplacement de walkDirSync par un générateur asynchrone
     for await (const filePath of this.walkDirAsync(directoryPath)) {
@@ -392,12 +391,13 @@ export default class RegistryDeploy extends SfCommand<void> {
       const result = registryMetaFileSchema.safeParse(JSON.parse(fileContent));
 
       if (!result.success) {
-        this.warn(`Fichier ${FILENAMES.REGISTRY_META} invalide : ${result.error.issues.map(i => i.message).join(', ')}`);
+        this.warn(
+          `Fichier ${FILENAMES.REGISTRY_META} invalide : ${result.error.issues.map((i) => i.message).join(', ')}`
+        );
         return null; // Le fichier est mal formé, on ignore
       }
 
       return result.data; // Succès, on retourne les données validées
-
     } catch (error) {
       // Gère les erreurs de lecture de fichier (ex: non trouvé) ou de parsing JSON
       return null;
@@ -405,12 +405,15 @@ export default class RegistryDeploy extends SfCommand<void> {
   }
 }
 
-
-async function extractApexDependencies(clsFilePath: string, allClassNames: string[], selfClassName: string): Promise<string[]> {
+async function extractApexDependencies(
+  clsFilePath: string,
+  allClassNames: string[],
+  selfClassName: string
+): Promise<string[]> {
   const code = await fs.readFile(clsFilePath, 'utf8');
   // Utilise un mot-clé (boundary `\b`) pour éviter les correspondances partielles (ex: `MyClass` dans `MyClassName`)
   return allClassNames.filter(
-      (className) => className !== selfClassName && new RegExp(`\\b${className}\\b`).test(code)
+    (className) => className !== selfClassName && new RegExp(`\\b${className}\\b`).test(code)
   );
 }
 
@@ -421,10 +424,10 @@ async function findStaticResourcesForComponent(componentDir: string): Promise<st
   const jsFile = path.join(componentDir, `${baseName}.js`);
 
   const [tsResults, jsResults] = await Promise.all([
-      extractDependenciesFromFile(tsFile, regex),
-      extractDependenciesFromFile(jsFile, regex),
+    extractDependenciesFromFile(tsFile, regex),
+    extractDependenciesFromFile(jsFile, regex),
   ]);
-  
+
   return [...new Set([...tsResults, ...jsResults])];
 }
 
@@ -432,11 +435,12 @@ async function findStaticResourceFileAsync(resourceDir: string, resName: string)
   try {
     const files = await fs.readdir(resourceDir);
 
-    const foundFile = files.find(file =>
-      // Condition 1 (inchangée) : Le nom doit correspondre exactement OU commencer par le nom de la ressource suivi d'un point.
-      (file === resName || file.startsWith(resName + '.')) &&
-      // Condition 2 (NOUVEAU) : ET le nom du fichier NE DOIT PAS se terminer par `.resource-meta.xml`.
-      !file.endsWith('.resource-meta.xml')
+    const foundFile = files.find(
+      (file) =>
+        // Condition 1 (inchangée) : Le nom doit correspondre exactement OU commencer par le nom de la ressource suivi d'un point.
+        (file === resName || file.startsWith(resName + '.')) &&
+        // Condition 2 (NOUVEAU) : ET le nom du fichier NE DOIT PAS se terminer par `.resource-meta.xml`.
+        !file.endsWith('.resource-meta.xml')
     );
 
     return foundFile ? path.join(resourceDir, foundFile) : null;
@@ -465,7 +469,7 @@ async function extractDependenciesFromFile(filePath: string, regex: RegExp): Pro
 async function safeListDirNamesAsync(base: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(base, { withFileTypes: true });
-    return entries.filter(e => e.isDirectory()).map(e => e.name);
+    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
   } catch (error) {
     throw new Error(`Erreur lors de la lecture du dossier "${base}" : ${(error as Error).message}`);
   }

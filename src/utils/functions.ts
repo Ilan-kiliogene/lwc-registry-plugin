@@ -1,8 +1,9 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import fsExtra from 'fs-extra';
-import { ComponentOrClassEntry, Registry } from './types.js';
-import { registrySchema } from './types.js';
+import fetch, { type RequestInit, type Response } from 'node-fetch';
+import { ComponentOrClassEntry, Registry, registrySchema } from './types.js';
+import { AUTH_CONFIG_FILE_PATH } from './constants.js';
 
 // ===============================================
 //  UTILITAIRE : Trouve la racine d’un projet SFDX
@@ -24,7 +25,7 @@ export function findProjectRoot(currentDir: string): string {
 // =====================================================
 export async function fetchCatalog(this: { error: (msg: string) => never }, server: string): Promise<Registry> {
   try {
-    const res = await fetch(`${server}/catalog`);
+    const res = await authedFetch(`${server}/catalog`);
     if (!res.ok) this.error(`Erreur ${res.status} lors de la récupération du registre`);
     const json = await res.json();
 
@@ -99,7 +100,6 @@ export function getDestination(targetDir: string, itemType: 'component' | 'class
   return path.join(targetDir, 'classes', itemName);
 }
 
-
 export async function fileExistsAndIsFile(filePath: string): Promise<boolean> {
   try {
     const stats = await fs.promises.stat(filePath);
@@ -107,4 +107,35 @@ export async function fileExistsAndIsFile(filePath: string): Promise<boolean> {
   } catch (error) {
     return false;
   }
+}
+
+
+async function getAuthToken(): Promise<string | undefined> {
+  try {
+    const configContent = await fs.promises.readFile(AUTH_CONFIG_FILE_PATH, 'utf-8');
+    const config: unknown = JSON.parse(configContent);
+    if (config && typeof config === 'object' && 'token' in config && typeof config.token === 'string') {
+      return config.token;
+    }
+    return undefined;
+  } catch (error) {    
+    return undefined;
+  }
+}
+
+export async function authedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = await getAuthToken();
+
+  if (!token) {
+    throw new Error(
+      'Vous n\'êtes pas authentifié. Veuillez d\'abord exécuter la commande `sf registry login`.'
+    );
+  }
+
+  const headers = {
+    ...options.headers,
+    Authorization: `Bearer ${token}`,
+  };
+
+  return fetch(url, { ...options, headers });
 }

@@ -13,17 +13,16 @@ export default class RegistryTemplate extends SfCommand<void> {
 
   public async run(): Promise<void> {
     try {
-      const type = await promptComponentOrClass('Quel type de template veux-tu créer ?');    
-      const cleanType = getCleanTypeLabel(type, false) 
-      const name = await promptValidNameCommandCreate(`Nom du ${cleanType}`)
+      const type = await promptComponentOrClass('Quel type de template veux-tu créer ?');
+      const cleanType = getCleanTypeLabel(type, false);
+      const name = await promptValidNameCommandCreate(`Nom du ${cleanType}`);
       const folder = await this.getTargetFolder(type, name);
-      await this.createRegistryMetaJson(folder)
+      await this.createRegistryMetaJson(folder);
       this.log(`✅ ${getCleanTypeLabel(type, false)} "${name}" créé avec succès.`);
     } catch (error) {
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-
 
   private async getTargetFolder(type: 'component' | 'class', name: string): Promise<string> {
     if (type === 'component') {
@@ -49,12 +48,11 @@ export default class RegistryTemplate extends SfCommand<void> {
     const jsFile = path.join(folder, `${name}.js`);
     const tsFile = path.join(folder, `${name}.ts`);
     if (await fileExistsAndIsFile(jsFile)) {
-        await fs.rename(jsFile, tsFile);
-        this.log(`🔁 Fichier ${name}.js renommé en ${name}.ts`);
+      await fs.rename(jsFile, tsFile);
+      this.log(`🔁 Fichier ${name}.js renommé en ${name}.ts`);
     }
     return folder;
   }
-
 
   private async createApexClass(name: string): Promise<string> {
     const projectRoot = findProjectRoot(process.cwd());
@@ -74,13 +72,12 @@ export default class RegistryTemplate extends SfCommand<void> {
     // Déplace les fichiers générés dans le sous-dossier
     const clsPath = path.join(classesParent, `${name}.cls`);
     const metaXmlPath = path.join(classesParent, `${name}.cls-meta.xml`);
-    
+
     await fs.rename(clsPath, path.join(folder, `${name}.cls`));
     await fs.rename(metaXmlPath, path.join(folder, `${name}.cls-meta.xml`));
 
     return folder;
   }
-
 
   private async createRegistryMetaJson(folder: string): Promise<void> {
     // On utilise la constante pour être sûr d'avoir le même nom de fichier que la commande 'deploy'

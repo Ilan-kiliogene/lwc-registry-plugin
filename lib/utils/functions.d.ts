@@ -1,3 +1,4 @@
+import { type RequestInit, type Response } from 'node-fetch';
 import { ComponentOrClassEntry, Registry } from './types.js';
 export declare function findProjectRoot(currentDir: string): string;
 export declare function fetchCatalog(this: {
@@ -15,3 +16,4 @@ export declare function safeRemove(this: {
 }, fileOrDir: string): Promise<void>;
 export declare function getDestination(targetDir: string, itemType: 'component' | 'class', itemName: string): string;
 export declare function fileExistsAndIsFile(filePath: string): Promise<boolean>;
+export declare function authedFetch(url: string, options?: RequestInit): Promise<Response>;

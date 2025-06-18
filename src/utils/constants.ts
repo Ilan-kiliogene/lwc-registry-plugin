@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import { z } from 'zod';
 
 // ============================================
@@ -64,3 +66,5 @@ export const PATHS = {
   LWC: 'force-app/main/default/lwc',
   APEX: 'force-app/main/default/classes',
 };
+
+export const AUTH_CONFIG_FILE_PATH = path.join(os.homedir(), '.my-registry-auth.json');

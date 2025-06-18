@@ -21,3 +21,4 @@ export declare const PATHS: {
     LWC: string;
     APEX: string;
 };
+export declare const AUTH_CONFIG_FILE_PATH: string;

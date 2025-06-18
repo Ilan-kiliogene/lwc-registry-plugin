@@ -12,36 +12,31 @@ export default class RegistryList extends SfCommand<void> {
 
   public async run(): Promise<void> {
     try {
-      const type = await promptComponentOrClass('Que veux-tu afficher ?'); 
-      const catalog = await fetchCatalog.call(this,SERVER_URL);
-      const cleanType = getCleanTypeLabel(type) 
-      const items = getNonEmptyItemsOrError.call(this,catalog,type,cleanType,'à afficher')
-      this.logRegistryItems(items, type, cleanType);  
+      const type = await promptComponentOrClass('Que veux-tu afficher ?');
+      const catalog = await fetchCatalog.call(this, SERVER_URL);
+      const cleanType = getCleanTypeLabel(type);
+      const items = getNonEmptyItemsOrError.call(this, catalog, type, cleanType, 'à afficher');
+      this.logRegistryItems(items, type, cleanType);
     } catch (error) {
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-
-  private logRegistryItems(
-    items: ComponentOrClassEntry[],
-    type: 'component' | 'class',
-    label: string 
-  ): void {
+  private logRegistryItems(items: ComponentOrClassEntry[], type: 'component' | 'class', label: string): void {
     const header = `\n${kleur.bold().underline(`${label} disponibles (${items.length})`)}\n`;
-  
-    const blocks = items.map(entry => {
+
+    const blocks = items.map((entry) => {
       let block = kleur.cyan().bold(`- ${entry.name}`) + '\n';
-  
+
       if (!entry.versions.length) return block;
-  
+
       block +=
         `   ${kleur.bold('Version').padEnd(12)}${kleur.bold('Description').padEnd(40)}` +
         (type === 'component' ? kleur.bold('StaticResources') : '') +
         '\n';
-  
+
       block += entry.versions
-        .map(v => {
+        .map((v) => {
           let line = `   ${kleur.green(`v${v.version}`).padEnd(12)}${v.description.padEnd(40)}`;
           if (type === 'component' && v.staticresources?.length) {
             line += kleur.magenta(v.staticresources.join(', '));
@@ -49,11 +44,11 @@ export default class RegistryList extends SfCommand<void> {
           return line;
         })
         .join('\n');
-  
+
       block += '\n'; // Saut de ligne après chaque bloc d’entrée
       return block;
     });
-  
+
     this.log(header + blocks.join('\n'));
   }
 }
