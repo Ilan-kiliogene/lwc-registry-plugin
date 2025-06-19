@@ -16,7 +16,6 @@ export default class RegistryLogin extends SfCommand<void> {
         name: 'username',
         message: 'Nom d\'utilisateur du registre :',
         type: 'input', 
-        default: 'admin',
       },
       {
         name: 'password',
