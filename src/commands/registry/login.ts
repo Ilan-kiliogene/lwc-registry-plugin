@@ -45,7 +45,7 @@ export default class RegistryLogin extends SfCommand<void> {
 
       const configData = { token: body.token };
       await fs.writeFile(AUTH_CONFIG_FILE_PATH, JSON.stringify(configData, null, 2), 'utf-8');
-      this.log(`✅ Authentification réussie ! Le token a été sauvegardé dans ${AUTH_CONFIG_FILE_PATH}`);
+      this.log('✅ Authentification réussie ! Le token a été sauvegardé');
 
     } catch (error) {
       this.error(`❌ Échec de la connexion : ${error instanceof Error ? error.message : String(error)}`);

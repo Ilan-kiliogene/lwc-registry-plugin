@@ -33,18 +33,10 @@ export default class RegistryList extends SfCommand<void> {
     label: string,
   ): string {
     const chunks: string[] = [];
-
-    // En‑tête global.
     chunks.push('\n' + kleur.bold().underline(`${label} disponibles (${items.length})`) + '\n');
-
-    // Un bloc par composant / classe.
     for (const entry of items) {
-      // Nom du composant.
       chunks.push(kleur.cyan().bold(`• ${entry.name}`));
-
       if (!entry.versions.length) continue;
-
-      // Construction du tableau aligné.
       const table = new Table({
         head:
           type === 'component'
@@ -54,7 +46,6 @@ export default class RegistryList extends SfCommand<void> {
         style: { head: [], border: [] },
         wordWrap: true,
       });
-
       entry.versions.forEach((v) => {
         table.push(
           type === 'component'
@@ -62,10 +53,8 @@ export default class RegistryList extends SfCommand<void> {
             : [`v${v.version}`, v.description || '—'],
         );
       });
-
-      chunks.push(table.toString(), ''); // ligne vide après chaque bloc
+      chunks.push(table.toString(), '');
     }
-
     return chunks.join('\n');
   }
 }

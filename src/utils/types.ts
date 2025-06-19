@@ -32,3 +32,13 @@ export type Dependency = z.infer<typeof DependencySchema>;
 export type ComponentOrClassVersion = z.infer<typeof versionSchema>;
 export type ComponentOrClassEntry = z.infer<typeof entrySchema>;
 export type Registry = z.infer<typeof registrySchema>;
+
+export type ItemType = 'component' | 'class';
+
+export type RegistryDep = Readonly<{
+  name: string;
+  type: ItemType;
+  dependencies: Array<{ name: string; type: ItemType }>;
+  staticresources: string[];
+  version?: string;
+}>;
