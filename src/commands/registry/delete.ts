@@ -13,6 +13,7 @@ import {
   promptVersionToDelete,
   promptDeleteConfirmation,
 } from '../../utils/prompts.js';
+import { AuthError } from '../../utils/errors.js';
 
 export default class RegistryDelete extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
@@ -35,6 +36,10 @@ export default class RegistryDelete extends SfCommand<void> {
       if (!ok) return;
       await this.deleteFromRegistry(SERVER_URL, type, name, version);
     } catch (error) {
+      if (error instanceof AuthError) {
+        // on affiche exactement le message défini dans authedFetch
+        this.error(error.message);
+      }
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -46,7 +51,7 @@ export default class RegistryDelete extends SfCommand<void> {
   ): Promise<void> {
     let url = `${serverUrl}/delete/${type}/${name}`;
     if (version) url += `/${version}`;
-    const delRes = await authedFetch(url, { method: 'DELETE' });
+    const delRes = await authedFetch.call(this,url, { method: 'DELETE' });
     const result = (await delRes.json()) as { error?: string; message?: string };
     if (!delRes.ok) {
       this.error(result.error ?? 'Erreur lors de la suppression.');

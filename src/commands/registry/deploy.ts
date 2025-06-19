@@ -13,6 +13,7 @@ import {
   promptDescriptionToEnter,
 } from '../../utils/prompts.js';
 import { findProjectRoot, getCleanTypeLabel, fileExistsAndIsFile, authedFetch } from '../../utils/functions.js';
+import { AuthError } from '../../utils/errors.js';
 
 // --- Types ---
 type ItemType = 'component' | 'class';
@@ -204,7 +205,7 @@ export default class RegistryDeploy extends SfCommand<void> {
     this.log(`📤 Envoi de ${zipFilePath} (${type}) vers ${SERVER_URL}/deploy...`);
     try {
       const stats = await fs.stat(zipFilePath);
-      const res = await authedFetch(`${SERVER_URL}/deploy`, {
+      const res = await authedFetch.call(this,`${SERVER_URL}/deploy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/zip',
@@ -217,8 +218,12 @@ export default class RegistryDeploy extends SfCommand<void> {
         this.error(`❌ Échec HTTP ${res.status} : ${resultText}`);
       }
       this.log(`✅ Réponse du serveur : ${resultText}`);
-    } catch (err) {
-      this.error(`❌ Erreur réseau : ${(err as Error).message}`);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        // on affiche exactement le message défini dans authedFetch
+        this.error(error.message);
+      }
+      this.error(`❌ Erreur réseau : ${(error as Error).message}`);
     }
   }
 

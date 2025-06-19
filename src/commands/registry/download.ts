@@ -22,6 +22,7 @@ import {
   promptSelectVersion,
   promptTargetDirectory,
 } from '../../utils/prompts.js';
+import { AuthError } from '../../utils/errors.js';
 
 export default class RegistryDownload extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
@@ -51,6 +52,10 @@ export default class RegistryDownload extends SfCommand<void> {
 
       this.log('✅ Téléchargement et extraction terminés avec succès !');
     } catch (error) {
+      if (error instanceof AuthError) {
+        // on affiche exactement le message défini dans authedFetch
+        this.error(error.message);
+      }
       this.error(`❌ Le téléchargement a échoué : ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       // Nettoyage final
@@ -63,7 +68,7 @@ export default class RegistryDownload extends SfCommand<void> {
     const zipPath = path.join(os.tmpdir(), `${name}-${version}-${randomUUID()}.zip`);
     this.log(`📥 Téléchargement depuis ${url}...`);
 
-    const res = await authedFetch(url);
+    const res = await authedFetch.call(this,url);
     if (!res.ok) throw new Error(`Erreur HTTP ${res.status}: ${res.statusText}`);
     if (!res.body) throw new Error('Réponse HTTP sans body !');
 

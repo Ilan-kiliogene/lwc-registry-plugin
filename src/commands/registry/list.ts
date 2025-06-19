@@ -4,6 +4,7 @@ import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError } from '../../
 import { promptComponentOrClass } from '../../utils/prompts.js';
 import { SERVER_URL } from '../../utils/constants.js';
 import { ComponentOrClassEntry } from '../../utils/types.js';
+import { AuthError } from '../../utils/errors.js';
 
 export default class RegistryList extends SfCommand<void> {
   // eslint-disable-next-line sf-plugin/no-hardcoded-messages-commands
@@ -18,6 +19,10 @@ export default class RegistryList extends SfCommand<void> {
       const items = getNonEmptyItemsOrError.call(this, catalog, type, cleanType, 'à afficher');
       this.logRegistryItems(items, type, cleanType);
     } catch (error) {
+      if (error instanceof AuthError) {
+        // on affiche exactement le message défini dans authedFetch
+        this.error(error.message);
+      }
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
