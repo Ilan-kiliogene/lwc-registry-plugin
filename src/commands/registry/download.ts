@@ -82,8 +82,8 @@ export default class RegistryDownload extends SfCommand<void> {
   }
 
   private async handleExtraction(tmpExtractPath: string, targetDirectory: string): Promise<void> {
-    const extractedDirs = fs
-      .readdirSync(tmpExtractPath, { withFileTypes: true })
+    const entries = await fs.promises.readdir(tmpExtractPath, { withFileTypes: true });
+    const extractedDirs = entries
       .filter((e) => e.isDirectory() && e.name !== 'staticresources')
       .map((e) => e.name);
 
