@@ -1,5 +1,7 @@
 import { SfCommand } from '@salesforce/sf-plugins-core';
 import kleur from 'kleur';
+import Table from 'cli-table3';
+
 import { fetchCatalog, getCleanTypeLabel, getNonEmptyItemsOrError } from '../../utils/functions.js';
 import { promptComponentOrClass } from '../../utils/prompts.js';
 import { SERVER_URL } from '../../utils/constants.js';
@@ -13,47 +15,57 @@ export default class RegistryList extends SfCommand<void> {
 
   public async run(): Promise<void> {
     try {
-      const type = await promptComponentOrClass('Que veux-tu afficher ?');
+      const type = await promptComponentOrClass('Que veux‑tu afficher ?');
       const catalog = await fetchCatalog.call(this, SERVER_URL);
       const cleanType = getCleanTypeLabel(type);
       const items = getNonEmptyItemsOrError.call(this, catalog, type, cleanType, 'à afficher');
-      this.logRegistryItems(items, type, cleanType);
+      this.log(this.formatRegistry(items, type, cleanType));
     } catch (error) {
-      if (error instanceof AuthError) {
-        // on affiche exactement le message défini dans authedFetch
-        this.error(error.message);
-      }
-      this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof AuthError) return this.error(error.message);
+      this.error(`❌ Erreur inattendue: ${(error as Error).message}`);
     }
   }
 
-  private logRegistryItems(items: ComponentOrClassEntry[], type: 'component' | 'class', label: string): void {
-    const header = `\n${kleur.bold().underline(`${label} disponibles (${items.length})`)}\n`;
+  // eslint-disable-next-line class-methods-use-this
+  private formatRegistry(
+    items: ComponentOrClassEntry[],
+    type: 'component' | 'class',
+    label: string,
+  ): string {
+    const chunks: string[] = [];
 
-    const blocks = items.map((entry) => {
-      let block = kleur.cyan().bold(`- ${entry.name}`) + '\n';
+    // En‑tête global.
+    chunks.push('\n' + kleur.bold().underline(`${label} disponibles (${items.length})`) + '\n');
 
-      if (!entry.versions.length) return block;
+    // Un bloc par composant / classe.
+    for (const entry of items) {
+      // Nom du composant.
+      chunks.push(kleur.cyan().bold(`• ${entry.name}`));
 
-      block +=
-        `   ${kleur.bold('Version').padEnd(12)}${kleur.bold('Description').padEnd(40)}` +
-        (type === 'component' ? kleur.bold('StaticResources') : '') +
-        '\n';
+      if (!entry.versions.length) continue;
 
-      block += entry.versions
-        .map((v) => {
-          let line = `   ${kleur.green(`v${v.version}`).padEnd(12)}${v.description.padEnd(40)}`;
-          if (type === 'component' && v.staticresources?.length) {
-            line += kleur.magenta(v.staticresources.join(', '));
-          }
-          return line;
-        })
-        .join('\n');
+      // Construction du tableau aligné.
+      const table = new Table({
+        head:
+          type === 'component'
+            ? [kleur.bold('Version'), kleur.bold('Description'), kleur.bold('StaticResources')]
+            : [kleur.bold('Version'), kleur.bold('Description')],
+        colWidths: type === 'component' ? [12, 40, 30] : [12, 60],
+        style: { head: [], border: [] },
+        wordWrap: true,
+      });
 
-      block += '\n'; // Saut de ligne après chaque bloc d’entrée
-      return block;
-    });
+      entry.versions.forEach((v) => {
+        table.push(
+          type === 'component'
+            ? [`v${v.version}`, v.description || '—', (v.staticresources ?? []).join(', ') || '—']
+            : [`v${v.version}`, v.description || '—'],
+        );
+      });
 
-    this.log(header + blocks.join('\n'));
+      chunks.push(table.toString(), ''); // ligne vide après chaque bloc
+    }
+
+    return chunks.join('\n');
   }
 }

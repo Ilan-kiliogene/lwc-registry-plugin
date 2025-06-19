@@ -26,10 +26,7 @@ export default class RegistryDelete extends SfCommand<void> {
       const catalog = await fetchCatalog.call(this, SERVER_URL);
       const cleanType = getCleanTypeLabel(type);
       const items = getNonEmptyItemsOrError.call(this, catalog, type, cleanType, 'à supprimer');
-      const name = await promptSelectName(
-        `Quel ${cleanType} veux-tu supprimer ?`,
-        items.map((e) => e.name)
-      );
+      const name = await promptSelectName(`Quel ${cleanType} veux-tu supprimer ?`,items.map((e) => e.name));
       const selectedEntry = findEntryOrError.call(this, items, name);
       const version = await promptVersionToDelete.call(this, selectedEntry.versions);
       const ok = await promptDeleteConfirmation({ type, name, version });
@@ -37,7 +34,6 @@ export default class RegistryDelete extends SfCommand<void> {
       await this.deleteFromRegistry(SERVER_URL, type, name, version);
     } catch (error) {
       if (error instanceof AuthError) {
-        // on affiche exactement le message défini dans authedFetch
         this.error(error.message);
       }
       this.error(`❌ Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`);
