@@ -3,9 +3,7 @@ import inquirer from 'inquirer';
 import type { ComponentOrClassEntry, ComponentOrClassVersion } from './types.js';
 import { findProjectRoot } from './functions.js';
 
-// =======================================================================
-//  PROMPT POUR CHOISIR LE TYPE D'ENTRÉE (COMPOSANT OU CLASSE)
-// =======================================================================
+
 export async function promptComponentOrClass(message: string): Promise<'component' | 'class'> {
   const { type } = await inquirer.prompt<{ type: 'component' | 'class' }>([
     {
@@ -21,9 +19,7 @@ export async function promptComponentOrClass(message: string): Promise<'componen
   return type;
 }
 
-// ===============================================
-//  PROMPT POUR CHOISIR UN COMPOSANT OU UNE CLASSE
-// ===============================================
+
 export async function promptSelectName(message: string, names: string[]): Promise<string> {
   const { name } = await inquirer.prompt<{ name: string }>([
     {
@@ -36,9 +32,7 @@ export async function promptSelectName(message: string, names: string[]): Promis
   return name;
 }
 
-// ==================================
-//  PROMPT POUR ÉCRIRE UN NOM VALIDE
-// ==================================
+
 export async function promptValidNameCommandCreate(message: string): Promise<string> {
   const { name } = await inquirer.prompt<{ name: string }>([
     {
@@ -51,9 +45,7 @@ export async function promptValidNameCommandCreate(message: string): Promise<str
   return name;
 }
 
-// =============================================
-//  PROMPT POUR CHOISIR QUELLE VERSION SUPPRIMER
-// =============================================
+
 export async function promptVersionToDelete(
   this: { error: (msg: string) => never },
   versions: ComponentOrClassVersion[]
@@ -82,9 +74,7 @@ export async function promptVersionToDelete(
   return which !== 'all' ? which : null;
 }
 
-// =============================================
-//  PROMPT POUR CONFIRMER LA VERSION À SUPPRIMER
-// =============================================
+
 export async function promptDeleteConfirmation(params: {
   type: string;
   name: string;
@@ -105,9 +95,7 @@ export async function promptDeleteConfirmation(params: {
   return ok;
 }
 
-// =============================================
-//  PROMPT POUR CHOISIR LA VERSION A TÉLÉCHARGER
-// =============================================
+
 export async function promptSelectVersion(entry: ComponentOrClassEntry, name: string): Promise<string> {
   const versions = entry.versions.map((v) => v.version).reverse();
   const { version } = await inquirer.prompt<{ version: string }>([
@@ -121,9 +109,7 @@ export async function promptSelectVersion(entry: ComponentOrClassEntry, name: st
   return version;
 }
 
-// =============================================
-//  PROMPT POUR CHOISIR LE CHEMIN OÙ TÉLÉCHARGER
-// =============================================
+
 export async function promptTargetDirectory(): Promise<string> {
   const { choice } = await inquirer.prompt<{ choice: string }>([
     {
@@ -150,9 +136,7 @@ export async function promptTargetDirectory(): Promise<string> {
   return finalDir;
 }
 
-// =========================================
-//  PROMPT POUR ÉCRIRE LA VERSION À DÉPLOYER
-// =========================================
+
 export async function promptVersionToEnter(message = 'Numéro de version à déployer ? (ex: 1.0.0)'): Promise<string> {
   const { version } = await inquirer.prompt<{ version: string }>([
     {
@@ -165,9 +149,7 @@ export async function promptVersionToEnter(message = 'Numéro de version à dép
   return version;
 }
 
-// ============================================
-//  PROMPT POUR ÉCRIRE LA DESCRIPTION À DÉPLOYER
-// =============================================
+
 export async function promptDescriptionToEnter(message = 'Description ?'): Promise<string> {
   const { description } = await inquirer.prompt<{ description: string }>([
     {

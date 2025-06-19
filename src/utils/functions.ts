@@ -6,9 +6,6 @@ import { ComponentOrClassEntry, Registry, registrySchema } from './types.js';
 import { AUTH_CONFIG_FILE_PATH } from './constants.js';
 import { AuthError } from './errors.js';
 
-// ===============================================
-//  UTILITAIRE : Trouve la racine d’un projet SFDX
-// ===============================================
 export function findProjectRoot(currentDir: string): string {
   let dir = currentDir;
   while (!fs.existsSync(path.join(dir, 'sfdx-project.json'))) {
@@ -21,9 +18,6 @@ export function findProjectRoot(currentDir: string): string {
   return dir;
 }
 
-// =====================================================
-//  UTILITAIRE : Récupère et valide le catalogue distant
-// =====================================================
 export async function fetchCatalog(this: { error: (msg: string) => never }, server: string): Promise<Registry> {
   try {
     const res   = await authedFetch.call(this, `${server}/catalog`);
@@ -41,17 +35,12 @@ export async function fetchCatalog(this: { error: (msg: string) => never }, serv
 }
 
 
-// =====================================================
-//  UTILITAIRE : Récupère et affiche proprement le type
-// =====================================================
 export function getCleanTypeLabel(type: 'component' | 'class', plural = true): string {
   if (type === 'component') return plural ? 'Composants LWC' : 'composant LWC';
   return plural ? 'Classes Apex' : 'classe Apex';
 }
 
-// ===========================================================
-//  UTILITAIRE : Récupère la partie du catalog voulue non vide
-// ===========================================================
+
 export function getNonEmptyItemsOrError(
   this: { error: (msg: string) => never },
   catalog: Registry,
@@ -66,9 +55,7 @@ export function getNonEmptyItemsOrError(
   return items;
 }
 
-// ======================================================
-//  UTILITAIRE : Trouve une entrée dans le catalog valide
-// ======================================================
+
 export function findEntryOrError(
   this: { error: (msg: string) => never },
   items: ComponentOrClassEntry[],
@@ -81,9 +68,7 @@ export function findEntryOrError(
   return selectedEntry;
 }
 
-// ===============================================
-//  UTILITAIRE : Supprime un fichier ou un dossier
-// ===============================================
+
 export async function safeRemove(this: { error: (msg: string) => never }, fileOrDir: string): Promise<void> {
   try {
     await fsExtra.remove(fileOrDir);
@@ -92,9 +77,7 @@ export async function safeRemove(this: { error: (msg: string) => never }, fileOr
   }
 }
 
-// =================================================
-//  UTILITAIRE : Renvoie le bon chemin selon le type
-// =================================================
+
 export function getDestination(targetDir: string, itemType: 'component' | 'class', itemName: string): string {
   if (itemType === 'component') {
     return path.join(targetDir, 'lwc', itemName);
@@ -105,7 +88,7 @@ export function getDestination(targetDir: string, itemType: 'component' | 'class
 export async function fileExistsAndIsFile(filePath: string): Promise<boolean> {
   try {
     const stats = await fs.promises.stat(filePath);
-    return stats.isFile(); // On vérifie en plus que ce n'est pas un dossier
+    return stats.isFile();
   } catch (error) {
     return false;
   }
@@ -124,6 +107,7 @@ async function getAuthToken(): Promise<string | undefined> {
     return undefined;
   }
 }
+
 
 export async function authedFetch(
   url: string,
@@ -145,7 +129,6 @@ export async function authedFetch(
 
   if (res.status !== 401) return res;
 
-  /* -------- 401 : on interprète -------- */
   let msg = 'Accès non autorisé (401).';
   try {
     const body = (await res.json()) as { code: string; error: string };

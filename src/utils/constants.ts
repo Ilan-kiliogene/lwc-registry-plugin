@@ -2,10 +2,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 
-// ============================================
-//  CONFIGURATION DES VARIABLES D'ENVIRONNEMENT
-// ============================================
-
 const rawConfig = {
   SERVER_URL: 'https://registry.kiliogene.com',
   FORBIDDEN_EXTENSIONS: [
@@ -27,13 +23,11 @@ const rawConfig = {
     '.com',
     '.wsf',
   ],
-  // ...autres configs ici si besoin
 };
 
 const configSchema = z.object({
   SERVER_URL: z.string().url(),
   FORBIDDEN_EXTENSIONS: z.array(z.string().startsWith('.')).nonempty(),
-  // autres variables si besoin...
 });
 
 const parsed = configSchema.safeParse(rawConfig);
@@ -41,7 +35,7 @@ const parsed = configSchema.safeParse(rawConfig);
 if (!parsed.success) {
   // eslint-disable-next-line no-console
   console.error('❌ Mauvaise configuration interne :', parsed.error.flatten().fieldErrors);
-  process.exit(1); // Stoppe le process si la config est invalide
+  process.exit(1);
 }
 
 export const SERVER_URL = parsed.data.SERVER_URL;
