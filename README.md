@@ -17,8 +17,16 @@ L'objectif principal de ce plugin est de créer un écosystème de partage de co
 
 ## 📦 Installation
 
+Dépôt public :
+
 ```bash
 sf plugins install https://github.com/Ilan-kiliogene/lwc-registry-plugin 
+```
+
+Pour un dépôt privé il est possible d'y accéder via une clé ssh exemple :
+
+```bash
+sf plugins:install git+ssh://git@github.com:TON-ORGA/mon-plugin-sf.git
 ```
 
 ## 📦 Déinstallation
