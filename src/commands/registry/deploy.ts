@@ -38,7 +38,7 @@ export default class RegistryDeploy extends SfCommand<void> {
       const staticResources = new Set(itemsToZip.flatMap((item) => item.staticresources));
       await this.validateStaticResources(staticResources);
       const zipFilePath = await this.createDeploymentPackage(itemsToZip, staticResources, userInput, classNameToDir);
-      await this.sendPackage(zipFilePath, userInput.type);
+      await this.sendPackage(zipFilePath);
       await fs.unlink(zipFilePath);
       this.log('✅ Déploiement terminé avec succès !');
     } catch (error) {
@@ -156,8 +156,7 @@ export default class RegistryDeploy extends SfCommand<void> {
     return tmpFile;
   }
 
-  private async sendPackage(zipFilePath: string, type: ItemType): Promise<void> {
-    this.log(`📤 Envoi de ${zipFilePath} (${type})`);
+  private async sendPackage(zipFilePath: string): Promise<void> {
     try {
       const stats = await fs.stat(zipFilePath);
       const res = await authedFetch.call(this,`${SERVER_URL}/deploy`, {
@@ -172,7 +171,6 @@ export default class RegistryDeploy extends SfCommand<void> {
       if (!res.ok) {
         this.error(`❌ Échec HTTP ${res.status} : ${resultText}`);
       }
-      this.log(`✅ Réponse du serveur : ${resultText}`);
     } catch (error) {
       if (error instanceof AuthError) {
         this.error(error.message);
