@@ -21,6 +21,12 @@ L'objectif principal de ce plugin est de créer un écosystème de partage de co
 sf plugins install https://github.com/Ilan-kiliogene/lwc-registry-plugin 
 ```
 
+## 📦 Déinstallation
+
+```bash
+sf plugins unistall registry
+```
+
 ## 🔧 Commandes
 
 Voici le détail de chaque commande disponible dans le plugin.
