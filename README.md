@@ -221,3 +221,6 @@ Pour contribuer au développement du plugin :
     ```bash
     sf registry <commande>
     ```
+
+
+### Version CLI Salesforce Utilisé : 2.90.4
