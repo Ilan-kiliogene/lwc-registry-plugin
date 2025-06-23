@@ -1,145 +1,209 @@
-# registry
+# SF Registry Plugin
 
-[![NPM](https://img.shields.io/npm/v/registry.svg?label=registry)](https://www.npmjs.com/package/registry) [![Downloads/week](https://img.shields.io/npm/dw/registry.svg)](https://npmjs.org/package/registry) [![License](https://img.shields.io/badge/License-BSD%203--Clause-brightgreen.svg)](https://raw.githubusercontent.com/salesforcecli/registry/main/LICENSE.txt)
+Ce projet est un plugin pour la CLI Salesforce (`sf`) conçu pour interagir avec un registre externe de composants (LWC et classes Apex). Il facilite le partage, le déploiement et le téléchargement de composants et de leurs dépendances entre différents projets Salesforce.
 
-## Using the template
+## 🚀 Objectif
 
-This repository provides a template for creating a plugin for the Salesforce CLI. To convert this template to a working plugin:
+L'objectif principal de ce plugin est de créer un écosystème de partage de code source (principalement des composants LWC et des classes Apex) qui ne sont pas destinés à être packagés dans des managed packages. Il offre une solution légère pour la réutilisation de code, en gérant automatiquement les dépendances entre les composants.
 
-1. Please get in touch with the Platform CLI team. We want to help you develop your plugin.
-2. Generate your plugin:
+## ✨ Fonctionnalités
 
-   ```
-   sf plugins install dev
-   sf dev generate plugin
+  * **Authentification :** Connexion sécurisée au serveur du registre.
+  * **Création de Squelettes :** Génération rapide de squelettes pour de nouveaux composants LWC ou classes Apex, prêts à être déployés sur le registre.
+  * **Listing :** Affichage de la liste des composants et des classes disponibles sur le registre, avec leurs versions et descriptions.
+  * **Déploiement Intelligent :** Analyse des dépendances locales (autres LWC, classes Apex, static resources) et empaquetage de l'ensemble dans une archive ZIP avant de l'envoyer au serveur.
+  * **Téléchargement Simplifié :** Téléchargement d'un composant ou d'une classe et extraction automatique dans la structure de dossiers Salesforce locale.
+  * **Suppression :** Suppression d'une version spécifique ou de toutes les versions d'un composant/classe du registre.
 
-   git init -b main
-   git add . && git commit -m "chore: initial commit"
-   ```
-
-3. Create your plugin's repo in the salesforcecli github org
-4. When you're ready, replace the contents of this README with the information you want.
-
-## Learn about `sf` plugins
-
-Salesforce CLI plugins are based on the [oclif plugin framework](<(https://oclif.io/docs/introduction.html)>). Read the [plugin developer guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_plugins.meta/sfdx_cli_plugins/cli_plugins_architecture_sf_cli.htm) to learn about Salesforce CLI plugin development.
-
-This repository contains a lot of additional scripts and tools to help with general Salesforce node development and enforce coding standards. You should familiarize yourself with some of the [node developer packages](#tooling) used by Salesforce.
-
-Additionally, there are some additional tests that the Salesforce CLI will enforce if this plugin is ever bundled with the CLI. These test are included by default under the `posttest` script and it is required to keep these tests active in your plugin if you plan to have it bundled.
-
-### Tooling
-
-- [@salesforce/core](https://github.com/forcedotcom/sfdx-core)
-- [@salesforce/kit](https://github.com/forcedotcom/kit)
-- [@salesforce/sf-plugins-core](https://github.com/salesforcecli/sf-plugins-core)
-- [@salesforce/ts-types](https://github.com/forcedotcom/ts-types)
-- [@salesforce/ts-sinon](https://github.com/forcedotcom/ts-sinon)
-- [@salesforce/dev-config](https://github.com/forcedotcom/dev-config)
-- [@salesforce/dev-scripts](https://github.com/forcedotcom/dev-scripts)
-
-### Hooks
-
-For cross clouds commands, e.g. `sf env list`, we utilize [oclif hooks](https://oclif.io/docs/hooks) to get the relevant information from installed plugins.
-
-This plugin includes sample hooks in the [src/hooks directory](src/hooks). You'll just need to add the appropriate logic. You can also delete any of the hooks if they aren't required for your plugin.
-
-# Everything past here is only a suggestion as to what should be in your specific plugin's description
-
-This plugin is bundled with the [Salesforce CLI](https://developer.salesforce.com/tools/sfdxcli). For more information on the CLI, read the [getting started guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm).
-
-We always recommend using the latest version of these commands bundled with the CLI, however, you can install a specific version or tag if needed.
-
-## Install
+## 📦 Installation
 
 ```bash
-sf plugins install registry@x.y.z
+sf plugins install https://github.com/Ilan-kiliogene/lwc-registry-plugin 
 ```
 
-## Issues
+## 🔧 Commandes
 
-Please report any issues at https://github.com/forcedotcom/cli/issues
+Voici le détail de chaque commande disponible dans le plugin.
 
-## Contributing
+-----
 
-1. Please read our [Code of Conduct](CODE_OF_CONDUCT.md)
-2. Create a new issue before starting your project so that we can keep track of
-   what you are trying to add/fix. That way, we can also offer suggestions or
-   let you know if there is already an effort in progress.
-3. Fork this repository.
-4. [Build the plugin locally](#build)
-5. Create a _topic_ branch in your fork. Note, this step is recommended but technically not required if contributing using a fork.
-6. Edit the code in your fork.
-7. Write appropriate tests for your changes. Try to achieve at least 95% code coverage on any new code. No pull request will be accepted without unit tests.
-8. Sign CLA (see [CLA](#cla) below).
-9. Send us a pull request when you are done. We'll review your code, suggest any needed changes, and merge it in.
+### `sf registry login`
 
-### CLA
+Cette commande vous authentifie auprès du serveur du registre. Elle vous demandera un nom d'utilisateur et un mot de passe, et en cas de succès, elle sauvegardera un token d'authentification JWT dans un fichier de configuration local à votre système (`~/.my-registry-auth.json`). Ce token sera ensuite utilisé pour toutes les autres commandes.
 
-External contributors will be required to sign a Contributor's License
-Agreement. You can do so by going to https://cla.salesforce.com/sign-cla.
-
-### Build
-
-To build the plugin locally, make sure to have yarn installed and run the following commands:
+**Exemple :**
 
 ```bash
-# Clone the repository
-git clone git@github.com:salesforcecli/registry
-
-# Install the dependencies and compile
-yarn && yarn build
+$ sf registry login
 ```
 
-To use your plugin, run using the local `./bin/dev` or `./bin/dev.cmd` file.
+-----
+
+### `sf registry list`
+
+Affiche la liste des composants LWC ou des classes Apex disponibles sur le registre. La commande présente les informations dans un tableau clair, incluant les versions, les descriptions et les ressources statiques associées (pour les LWC).
+
+**Exemple :**
 
 ```bash
-# Run using local run file.
-./bin/dev hello world
+$ sf registry list
 ```
 
-There should be no differences when running via the Salesforce CLI or using the local run file. However, it can be useful to link the plugin to do some additional testing or run your commands from anywhere on your machine.
+-----
+
+### `sf registry create`
+
+Crée un squelette pour un nouveau composant LWC ou une nouvelle classe Apex.
+
+  * **Pour un LWC :** Elle utilise `sf lightning component generate`, puis renomme le fichier `.js` en `.ts`.
+  * **Pour une classe Apex :** Elle utilise `sf apex class generate`, puis déplace les fichiers `.cls` et `-meta.xml` dans un dossier portant le nom de la classe pour une meilleure organisation.
+
+Dans les deux cas, elle ajoute un fichier `registry-meta.json` dans le dossier généré. Ce fichier doit être complété avec la version et la description avant le déploiement.
+
+**Exemple :**
 
 ```bash
-# Link your plugin to the sf cli
-sf plugins link .
-# To verify
-sf plugins
+$ sf registry create
 ```
 
-## Commands
+-----
 
-<!-- commands -->
+### `sf registry deploy`
 
-- [`sf hello world`](#sf-hello-world)
+C'est la commande la plus complexe. Elle analyse, empaquette et déploie un composant ou une classe sur le registre.
 
-## `sf hello world`
+1.  **Analyse :** Elle scanne votre projet pour trouver tous les composants LWC et classes Apex existants.
+2.  **Sélection :** Elle vous demande quel élément déployer.
+3.  **Métadonnées :** Elle recherche un fichier `registry-meta.json` pour obtenir la version et la description. Si le fichier est absent ou invalide, elle vous les demande interactivement.
+4.  **Analyse des dépendances :** Elle parcourt récursivement tous les fichiers de l'élément à déployer pour trouver ses dépendances :
+      * Imports de LWC (`import ... from 'c/componentName'`).
+      * Imports de classes Apex (`import ... from '@salesforce/apex/ClassName.methodName'`).
+      * Imports de ressources statiques (`import ... from '@salesforce/resourceUrl/resourceName'`).
+5.  **Validation :** Elle vérifie que les ressources statiques référencées existent bien dans votre projet.
+6.  **Empaquetage :** Elle crée une archive `.zip` contenant l'élément principal, toutes ses dépendances (LWC, classes, ressources statiques) et deux fichiers de métadonnées (`metadata.json` et `registry-deps.json`).
+7.  **Envoi :** L'archive est envoyée au serveur via une requête `POST` sur l'endpoint `/deploy`.
 
-Say hello either to the world or someone you know.
+**Exemple :**
 
-```
-USAGE
-  $ sf hello world [--json] [-n <value>]
-
-FLAGS
-  -n, --name=<value>  [default: World] The name of the person you'd like to say hello to.
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  Say hello either to the world or someone you know.
-
-  Say hello either to the world or someone you know.
-
-EXAMPLES
-  Say hello to the world:
-
-    $ sf hello world
-
-  Say hello to someone you know:
-
-    $ sf hello world --name Astro
+```bash
+$ sf registry deploy
 ```
 
-<!-- commandsstop -->
+-----
+
+### `sf registry download`
+
+Télécharge un composant ou une classe depuis le registre.
+
+1.  **Sélection :** Vous choisissez le type (LWC/Classe), le nom et la version à télécharger via des menus interactifs.
+2.  **Téléchargement :** La commande télécharge une archive `.zip` depuis le serveur.
+3.  **Extraction :** L'archive est extraite dans un dossier temporaire.
+4.  **Placement :** Le contenu est ensuite déplacé vers les bons répertoires de votre projet (`force-app/main/default/lwc`, `force-app/main/default/classes`, etc.).
+5.  **Gestion des doublons :** Si un élément du même nom existe déjà, son extraction est ignorée pour éviter d'écraser des fichiers locaux.
+
+**Exemple :**
+
+```bash
+$ sf registry download
+```
+
+-----
+
+### `sf registry delete`
+
+Supprime un élément du registre.
+
+  * La commande vous demande quel élément supprimer (type, nom).
+  * Elle vous permet de choisir une version spécifique à supprimer ou de supprimer toutes les versions d'un coup.
+  * Une confirmation est demandée avant toute action destructrice.
+
+**Exemple :**
+
+```bash
+$ sf registry delete
+```
+
+## ⚙️ Architecture et Concepts Clés
+
+Cette section détaille le fonctionnement interne du plugin pour en faciliter la maintenance.
+
+### Structure du Projet
+
+  * `src/commands/registry/`: Contient le code de chaque commande `sf`. Chaque fichier correspond à une commande et gère principalement l'interaction avec l'utilisateur (prompts, logs).
+  * `src/utils/`: C'est le cœur du plugin. On y trouve :
+      * `functions.ts`: Fonctions utilitaires réutilisées par plusieurs commandes (ex: `fetchCatalog`, `authedFetch`, `findProjectRoot`).
+      * `prompts.ts`: Centralise tous les menus interactifs `inquirer` pour une maintenance facile.
+      * `constants.ts`: Définit les constantes globales comme les chemins standards (`PATHS`) et les noms de fichiers (`FILENAMES`).
+      * `types.ts`: Définit les schémas de données (`zod`) et les types TypeScript pour les objets manipulés (registre, dépendances, etc.).
+      * `errors.ts`: Contient les classes d'erreurs personnalisées comme `AuthError`.
+  * `messages/`: Fichiers de description pour les commandes et leurs flags.
+  * `package.json`: Définit les dépendances du projet (`@salesforce/sf-plugins-core`, `archiver`, `inquirer`, etc.) et les scripts de build/test.
+
+### Authentification
+
+L'authentification est basée sur un token.
+
+1.  La commande `sf registry login` envoie les identifiants à l'endpoint `/auth/login` du serveur.
+2.  Le serveur retourne un token JWT.
+3.  Ce token est stocké dans `~/.my-registry-auth.json`.
+4.  Toutes les autres commandes faisant appel à l'API utilisent la fonction `authedFetch` de `src/utils/functions.ts`. Cette fonction lit le token, l'ajoute à l'en-tête `Authorization: Bearer` de la requête et gère les erreurs de type 401 (token invalide ou expiré).
+
+### Le fichier `registry-meta.json`
+
+Ce fichier est crucial pour le processus de déploiement.
+
+  * Il est généré par `sf registry create`.
+  * Il doit contenir la `version` (format `x.y.z`) et la `description` de l'élément à déployer.
+  * La commande `sf registry deploy` lit ce fichier. S'il est présent et valide, elle utilise ses valeurs sans poser de questions à l'utilisateur, ce qui est idéal pour une intégration dans un pipeline de CI/CD. S'il est absent ou invalide, elle bascule en mode interactif.
+
+### Empaquetage pour le Déploiement (`deploy`)
+
+Lorsque vous déployez un élément, le plugin crée une archive `.zip` avec une structure précise :
+
+  * À la racine, chaque composant LWC et chaque classe Apex (avec ses dépendances) se trouve dans un dossier à son nom.
+  * Un dossier `staticresources` contient les ressources statiques requises et leurs fichiers `-meta.xml`.
+  * Un fichier `metadata.json` contient les informations de l'élément principal (nom, type, version, description).
+  * Un fichier `registry-deps.json` contient la liste complète de tous les éléments inclus dans l'archive.
+
+Cette archive est ensuite envoyée au serveur, qui se chargera de la traiter pour mettre à jour le registre.
+
+## 🛠️ Développement
+
+Pour contribuer au développement du plugin :
+
+1.  **Cloner le dépôt :**
+
+    ```bash
+    git clone <URL_DU_REPO>
+    cd lwc-registry-plugin
+    ```
+
+2.  **Installer les dépendances :**
+
+    ```bash
+    yarn install
+    ```
+
+3.  **Compiler le code :**
+
+    ```bash
+    yarn build
+    ```
+
+4.  **Activer le plugin localement :**
+
+    ```bash
+    sf plugins link .
+    ```
+
+5.  **Vérifier l'activation du plugin :**
+
+    ```bash
+    sf plugins
+    ```
+
+6.  **Lancer les commandes :**
+
+    ```bash
+    sf registry <commande>
+    ```
